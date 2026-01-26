@@ -6,7 +6,7 @@ from PIL import Image
 from logger import logger
 from utils import get_md5
 
-DATA_PATH = "data"
+DATA_PATH = "../data"
     
 class Database:
     
