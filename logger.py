@@ -7,8 +7,8 @@ class Logger:
         self.logger.setLevel(level)
         
         if not self.logger.handlers:
-            console_format = logging.Formatter('%(levelname)s: %(message)s')
-            file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(pathname)s:%(lineno)d - %(message)s')
+            console_format = logging.Formatter('[%(levelname)s] %(message)s')
+            file_format = logging.Formatter('[%(levelname)s] - %(name)s - %(asctime)s - %(pathname)s:%(lineno)d - %(message)s')
 
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(console_format)
