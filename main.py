@@ -12,9 +12,7 @@ CHECK_INTERVAL: float = 1.0
 
 def monitor() -> None:
     """主监控循环"""
-    print(f"🚀 剪贴板监控已启动...")
-    
-    last_hash: str = ""
+    logger.info("PowerClip Started")
     
     while True:
         try:
@@ -28,7 +26,7 @@ def monitor() -> None:
             
         except Exception as e:
             logger.error(f"Failed to check clipboard, due to {e}")
-            time.sleep(1)
+            time.sleep(0.5)
 
 if __name__ == "__main__":
     monitor()

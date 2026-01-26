@@ -81,13 +81,13 @@ class Database:
             self.conn.commit()
             
             # 日志：显示更新时间
-            display_content = self._format_display_content(c_type, content, data_hash)
+            display_content = self._format_display_content(c_type, content.strip(), data_hash)
             logger.info(f"更新记录时间: [{c_type}] {display_content}... (原时间: {old_time})")
             return True
         else:
             # 不存在，插入新记录
             try:
-                display_content = self._format_display_content(c_type, content, data_hash)
+                display_content = self._format_display_content(c_type, content.strip(), data_hash)
                 c.execute("INSERT INTO history (type, content, hash, created_at) VALUES (?, ?, ?, ?)",
                         (c_type, content, data_hash, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
                 self.conn.commit()
@@ -100,7 +100,7 @@ class Database:
     def _format_display_content(self, c_type, content, data_hash):
         """格式化显示内容"""
         if c_type == "text":
-            return content[:30].replace('\n', ' ')
+            return content[:30].replace('\r', '').replace('\n', ' ')
         else:
             return f"Image {data_hash}.png"
 
