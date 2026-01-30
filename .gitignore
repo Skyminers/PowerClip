@@ -3,3 +3,9 @@
 __pycache__/
 data/
 *.log
+*.db
+node_modules/
+dist/
+target/
+Cargo.lock
+.DS_Store
