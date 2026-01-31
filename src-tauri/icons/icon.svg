@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Background circle -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="clipGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#e94560"/>
+      <stop offset="100%" style="stop-color:#c73e54"/>
+    </linearGradient>
+    <linearGradient id="paperGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff"/>
+      <stop offset="100%" style="stop-color:#f0f0f0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Main background circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#bgGrad)"/>
+
+  <!-- Clipboard base -->
+  <rect x="34" y="28" width="60" height="72" rx="6" ry="6" fill="url(#paperGrad)"/>
+
+  <!-- Clipboard clip -->
+  <rect x="44" y="22" width="40" height="16" rx="4" ry="4" fill="url(#clipGrad)"/>
+  <rect x="54" y="30" width="20" height="4" rx="2" ry="2" fill="#1a1a2e"/>
+
+  <!-- Clipboard content lines -->
+  <rect x="44" y="48" width="40" height="4" rx="2" ry="2" fill="#0f3460" opacity="0.6"/>
+  <rect x="44" y="58" width="32" height="4" rx="2" ry="2" fill="#0f3460" opacity="0.5"/>
+  <rect x="44" y="68" width="36" height="4" rx="2" ry="2" fill="#0f3460" opacity="0.4"/>
+  <rect x="44" y="78" width="28" height="4" rx="2" ry="2" fill="#0f3460" opacity="0.3"/>
+
+  <!-- Small history indicator (clock/copy icon) -->
+  <circle cx="80" cy="80" r="18" fill="url(#clipGrad)"/>
+  <g transform="translate(80, 80)">
+    <!-- Clock hands -->
+    <line x1="0" y1="0" x2="0" y2="-6" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+    <line x1="0" y1="0" x2="4" y2="0" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="7" stroke="#fff" stroke-width="1.5" fill="none" opacity="0.8"/>
+  </g>
+</svg>

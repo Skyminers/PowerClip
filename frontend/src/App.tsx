@@ -129,7 +129,7 @@ function App() {
   return (
     <div className="w-full h-full flex flex-col bg-[#1a1a2e] text-white overflow-hidden">
       {/* 搜索栏 */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-[#16213e] border-b border-[#0f3460]">
+      <div className="flex items-center gap-2 px-3 py-2 bg-[#16213e] border-b border-[#0f3460] flex-shrink-0">
         <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
@@ -156,7 +156,7 @@ function App() {
       {/* 历史列表 */}
       <ul
         ref={listRef}
-        className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[#0f3460] scrollbar-track-transparent"
+        className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[#0f3460] scrollbar-track-transparent bg-[#1a1a2e]"
         onKeyDown={handleKeyDown}
         tabIndex={0}
       >
@@ -232,7 +232,7 @@ function App() {
         ))}
 
         {filteredItems.length === 0 && (
-          <li className="px-3 py-12 text-center">
+          <li className="px-3 py-12 text-center empty-state">
             <div className="flex flex-col items-center gap-2 text-gray-500">
               <svg className="w-12 h-12 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -246,7 +246,7 @@ function App() {
       </ul>
 
       {/* 状态栏 */}
-      <div className="px-3 py-2 bg-[#16213e] border-t border-[#0f3460] flex items-center justify-between text-xs">
+      <div className="px-3 py-2 bg-[#16213e] border-t border-[#0f3460] flex items-center justify-between text-xs flex-shrink-0">
         <div className="flex items-center gap-3 text-gray-400">
           <span>{filteredItems.length} / {items.length} 条</span>
           {searchQuery && <span className="text-[#e94560]">筛选模式</span>}
