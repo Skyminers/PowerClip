@@ -2,6 +2,19 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { ClipboardItem } from './types'
 
+// Ghostty-inspired color palette
+const colors = {
+  bg: '#1e1e2e',
+  bgSecondary: '#29293f',
+  bgHover: '#3a3a4f',
+  text: '#cdd6f4',
+  textMuted: '#6c7086',
+  accent: '#89b4fa',
+  accentHover: '#b4befe',
+  border: '#45475a',
+  selected: '#585b70',
+}
+
 function App() {
   const [items, setItems] = useState<ClipboardItem[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -127,10 +140,16 @@ function App() {
   }
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#1a1a2e] text-white overflow-hidden">
-      {/* 搜索栏 */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-[#16213e] border-b border-[#0f3460] flex-shrink-0">
-        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div
+      className="window-frame w-full h-full flex flex-col text-white"
+      style={{ backgroundColor: colors.bg }}
+    >
+      {/* 搜索栏 - 可拖动区域 */}
+      <div
+        className="drag-region flex items-center gap-3 px-4 py-3 border-b"
+        style={{ backgroundColor: colors.bgSecondary, borderColor: colors.border }}
+      >
+        <svg className="w-4 h-4 flex-shrink-0" style={{ color: colors.textMuted }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input
@@ -138,13 +157,15 @@ function App() {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="搜索剪贴板历史..."
-          className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 outline-none"
+          placeholder="搜索..."
+          className="flex-1 bg-transparent text-sm outline-none placeholder-gray-500 no-drag"
+          style={{ color: colors.text }}
         />
         {searchQuery && (
           <button
             onClick={() => setSearchQuery('')}
-            className="text-gray-500 hover:text-white transition-colors"
+            className="no-drag p-1 rounded hover:bg-gray-700 transition-colors"
+            style={{ color: colors.textMuted }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -156,26 +177,29 @@ function App() {
       {/* 历史列表 */}
       <ul
         ref={listRef}
-        className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[#0f3460] scrollbar-track-transparent bg-[#1a1a2e]"
+        className="flex-1 overflow-y-auto scrollbar-thin"
+        style={{ backgroundColor: colors.bg }}
         onKeyDown={handleKeyDown}
         tabIndex={0}
       >
         {filteredItems.map((item, index) => (
           <li
             key={item.id}
-            className={`group relative px-3 py-2.5 cursor-pointer transition-all duration-150 ${
-              selectedId === item.id
-                ? 'bg-[#e94560]'
-                : 'hover:bg-[#16213e] border-b border-[#0f3460]/30'
+            className={`relative px-4 py-3 cursor-pointer transition-all duration-150 fade-in ${
+              selectedId === item.id ? 'selected-pulse' : ''
             }`}
+            style={{
+              backgroundColor: selectedId === item.id ? colors.selected : 'transparent',
+              borderBottom: `1px solid ${colors.border}20`,
+            }}
             onClick={() => setSelectedId(item.id)}
             onDoubleClick={() => copyItem(item)}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-start gap-2 min-w-0">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
                 <span className={`text-sm flex-shrink-0 mt-0.5 ${
-                  selectedId === item.id ? 'opacity-90' : 'text-gray-400'
-                }`}>
+                  selectedId === item.id ? 'opacity-90' : ''
+                }`} style={{ color: selectedId === item.id ? colors.text : colors.textMuted }}>
                   {item.item_type === 'text' ? (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -187,13 +211,11 @@ function App() {
                   )}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm truncate ${
-                    selectedId === item.id ? 'text-white' : 'text-gray-200'
-                  }`}>
+                  <p className="text-sm truncate" style={{ color: selectedId === item.id ? colors.text : colors.text }}>
                     {formatContent(item.content, item.item_type)}
                   </p>
                   {selectedId === item.id && item.item_type === 'text' && (
-                    <p className="text-xs mt-1 text-white/70 line-clamp-2 opacity-80">
+                    <p className="text-xs mt-1.5 line-clamp-2 opacity-70" style={{ color: colors.text }}>
                       {getPreview(item.content, item.item_type)}
                     </p>
                   )}
@@ -201,15 +223,14 @@ function App() {
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {!isDarwin && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded ${
-                    selectedId === item.id ? 'bg-white/20 text-white' : 'bg-[#0f3460] text-gray-400'
-                  }`}>
+                  <span className="text-xs px-1.5 py-0.5 rounded" style={{
+                    backgroundColor: selectedId === item.id ? 'rgba(255,255,255,0.15)' : colors.bgSecondary,
+                    color: selectedId === item.id ? colors.text : colors.textMuted
+                  }}>
                     {index + 1}
                   </span>
                 )}
-                <span className={`text-xs ${
-                  selectedId === item.id ? 'text-white/70' : 'text-gray-500'
-                }`}>
+                <span className="text-xs" style={{ color: selectedId === item.id ? colors.textMuted : colors.textMuted }}>
                   {formatTime(item.created_at)}
                 </span>
               </div>
@@ -218,11 +239,17 @@ function App() {
             {/* 快捷键提示 */}
             {selectedId === item.id && (
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded text-white/80">
+                <span className="text-xs px-2 py-0.5 rounded" style={{
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  color: colors.text
+                }}>
                   Enter
                 </span>
                 {isDarwin && (
-                  <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded text-white/80">
+                  <span className="text-xs px-2 py-0.5 rounded" style={{
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    color: colors.text
+                  }}>
                     ⌘{index + 1}
                   </span>
                 )}
@@ -232,31 +259,41 @@ function App() {
         ))}
 
         {filteredItems.length === 0 && (
-          <li className="px-3 py-12 text-center empty-state">
-            <div className="flex flex-col items-center gap-2 text-gray-500">
-              <svg className="w-12 h-12 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <li className="px-4 py-16 text-center empty-state">
+            <div className="flex flex-col items-center gap-3" style={{ color: colors.textMuted }}>
+              <svg className="w-12 h-12 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
               <span className="text-sm">
                 {searchQuery ? '未找到匹配的结果' : '暂无剪贴板历史'}
               </span>
+              <span className="text-xs opacity-50">复制内容后会自动记录</span>
             </div>
           </li>
         )}
       </ul>
 
       {/* 状态栏 */}
-      <div className="px-3 py-2 bg-[#16213e] border-t border-[#0f3460] flex items-center justify-between text-xs flex-shrink-0">
-        <div className="flex items-center gap-3 text-gray-400">
+      <div
+        className="flex items-center justify-between px-4 py-2 text-xs"
+        style={{ backgroundColor: colors.bgSecondary, borderTop: `1px solid ${colors.border}` }}
+      >
+        <div className="flex items-center gap-4" style={{ color: colors.textMuted }}>
           <span>{filteredItems.length} / {items.length} 条</span>
-          {searchQuery && <span className="text-[#e94560]">筛选模式</span>}
+          {searchQuery && <span style={{ color: colors.accent }}>筛选模式</span>}
         </div>
-        <div className="flex items-center gap-3 text-gray-500">
-          <span className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 bg-[#0f3460] rounded text-[10px]">/</kbd> 搜索
+        <div className="flex items-center gap-4" style={{ color: colors.textMuted }}>
+          <span className="flex items-center gap-1.5">
+            <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>
+              /
+            </kbd>
+            搜索
           </span>
-          <span className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 bg-[#0f3460] rounded text-[10px]">Esc</kbd> 关闭
+          <span className="flex items-center gap-1.5">
+            <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>
+              Esc
+            </kbd>
+            关闭
           </span>
           <span>{isDarwin ? '⌘⇧V' : 'Ctrl+Shift+V'}</span>
         </div>

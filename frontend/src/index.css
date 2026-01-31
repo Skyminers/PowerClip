@@ -12,27 +12,27 @@ html, body, #root {
   width: 100%;
   height: 100%;
   min-height: 100%;
-  background-color: #1a1a2e !important;
+  background-color: #1e1e2e !important;
   overflow: hidden;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 窗口拖动区域 */
+/* Window drag area - entire window is draggable */
 .drag-region {
   -webkit-app-region: drag;
 }
 
-/* 禁止拖动的按钮 */
+/* No drag for interactive elements */
 .no-drag {
   -webkit-app-region: no-drag;
 }
 
-/* 自定义滚动条 */
+/* Custom scrollbar */
 .scrollbar-thin::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -43,12 +43,12 @@ body {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(15, 52, 96, 0.8);
+  background: rgba(139, 142, 145, 0.4);
   border-radius: 3px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(15, 52, 96, 1);
+  background: rgba(139, 142, 145, 0.6);
 }
 
 /* Focus outline */
@@ -64,12 +64,48 @@ ul:focus {
   overflow: hidden;
 }
 
-/* 确保所有列表项都有背景 */
+/* List items */
 li {
   background-color: inherit;
 }
 
-/* 空状态 */
+/* Window rounded corners */
+.window-frame {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Empty state */
 .empty-state {
-  background-color: #1a1a2e;
+  background-color: #1e1e2e;
+}
+
+/* Selection highlight animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.selected-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.2s ease-out;
 }
