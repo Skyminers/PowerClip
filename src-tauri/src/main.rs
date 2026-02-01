@@ -5,13 +5,14 @@
 
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
 use rusqlite::Connection;
 use chrono::Local;
 use serde::Serialize;
+use global_hotkey::GlobalHotKeyManager;
 use tauri::{
     AppHandle, Manager, State,
     image::Image,
@@ -32,6 +33,11 @@ pub struct ClipboardItem {
 #[derive(Debug)]
 pub struct DatabaseState {
     conn: Mutex<Connection>,
+}
+
+pub struct HotkeyState {
+    // Keep the manager alive
+    _manager: Mutex<global_hotkey::GlobalHotKeyManager>,
 }
 
 #[tauri::command]
@@ -153,66 +159,6 @@ fn get_clipboard_content() -> Option<String> {
     }
 }
 
-// macOS global hotkey monitoring using AppleScript
-#[cfg(target_os = "macos")]
-fn start_hotkey_monitor(app: AppHandle) {
-    use std::sync::atomic::{AtomicBool, Ordering};
-
-    let running = Arc::new(AtomicBool::new(true));
-    let app_clone = app.clone();
-
-    thread::spawn(move || {
-        while running.load(Ordering::Relaxed) {
-            let output = std::process::Command::new("osascript")
-                .args(["-e", "
-                    tell application \"System Events\"
-                        if (keys down {command, shift}) and (key code 9) then
-                            return true
-                        else
-                            return false
-                        end if
-                    end tell
-                "])
-                .output();
-
-            match output {
-                Ok(result) => {
-                    if result.status.success() {
-                        let output_str = String::from_utf8_lossy(&result.stdout);
-                        if output_str.trim() == "true" {
-                            if let Some(window) = app_clone.get_webview_window("main") {
-                                let is_visible = window.is_visible().unwrap_or(false);
-                                if is_visible {
-                                    let _ = window.hide();
-                                } else {
-                                    let _ = window.show();
-                                    let _ = window.set_focus();
-                                }
-                            }
-                            thread::sleep(Duration::from_millis(500));
-                        }
-                    }
-                }
-                Err(_) => {}
-            }
-            thread::sleep(Duration::from_millis(50));
-        }
-    });
-}
-
-#[cfg(not(target_os = "macos"))]
-fn start_hotkey_monitor(app: AppHandle) {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    let running = Arc::new(AtomicBool::new(true));
-    let app = app.clone();
-
-    thread::spawn(move || {
-        while running.load(Ordering::Relaxed) {
-            thread::sleep(Duration::from_millis(50));
-        }
-    });
-}
-
 fn start_clipboard_monitor(app: AppHandle) {
     thread::spawn(move || {
         let mut last_hash = String::new();
@@ -279,6 +225,13 @@ fn main() {
             };
             app.manage(state);
 
+            // Initialize hotkey manager and store it in state to keep it alive
+            let manager = GlobalHotKeyManager::new().map_err(|e| e.to_string())?;
+            let hotkey_state = HotkeyState {
+                _manager: Mutex::new(manager),
+            };
+            app.manage(hotkey_state);
+
             // 创建系统托盘
             let icon_data = include_bytes!("../icons/icon.png");
             let icon = Image::from_bytes(icon_data).map_err(|e| e.to_string())?;
@@ -310,7 +263,7 @@ fn main() {
                     }
                 })
                 .on_tray_icon_event(|tray, event| {
-                    // 左键点击：显示窗口
+                    // 左键点击：显示窗口并聚焦
                     if let tauri::tray::TrayIconEvent::Click {
                         button: tauri::tray::MouseButton::Left,
                         ..
@@ -318,6 +271,8 @@ fn main() {
                         if let Some(window) = tray.app_handle().get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
+                            // 延迟执行 JavaScript 聚焦到列表
+                            let _ = window.eval("setTimeout(() => document.querySelector('ul')?.focus(), 100)");
                         }
                     }
                     // 右键点击由 show_menu_on_left_click(false) 自动处理显示菜单
@@ -328,10 +283,80 @@ fn main() {
             let app_handle = app.handle().clone();
             start_clipboard_monitor(app_handle.clone());
 
-            // 启动全局快捷键监控 (macOS)
+            // 注册全局快捷键 - 使用 global-hotkey crate
+            let window = app.get_webview_window("main").unwrap();
+            let hotkey_state = app.state::<HotkeyState>();
+            let manager = hotkey_state._manager.lock().map_err(|e| e.to_string())?;
+
             #[cfg(target_os = "macos")]
             {
-                start_hotkey_monitor(app_handle.clone());
+                // Command+Shift+V on macOS
+                use global_hotkey::hotkey::{Code, Modifiers, HotKey};
+                use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
+
+                // 注册快捷键
+                let hotkey = HotKey::new(Some(Modifiers::META | Modifiers::SHIFT), Code::KeyV);
+                manager.register(hotkey).map_err(|e| e.to_string())?;
+                eprintln!("[PowerClip] Hotkey registered (Cmd+Shift+V)");
+
+                // 监听快捷键事件 - 只在释放按键时触发
+                let win = window.clone();
+                GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
+                    if event.id == hotkey.id() && event.state == HotKeyState::Released {
+                        eprintln!("[PowerClip] Hotkey released - toggling window");
+                        let is_visible = win.is_visible().unwrap_or(false);
+                        if is_visible {
+                            let _ = win.hide();
+                        } else {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                            let _ = win.eval("setTimeout(() => document.querySelector('ul')?.focus(), 100)");
+                        }
+                    }
+                }));
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                // Ctrl+Shift+V on Windows/Linux
+                use global_hotkey::hotkey::{Code, Modifiers, HotKey};
+                use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
+
+                // 注册快捷键
+                let hotkey = HotKey::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::KeyV);
+                manager.register(hotkey).map_err(|e| e.to_string())?;
+                eprintln!("[PowerClip] Hotkey registered (Ctrl+Shift+V)");
+
+                // 监听快捷键事件 - 只在释放按键时触发
+                let win = window.clone();
+                GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
+                    if event.id == hotkey.id() && event.state == HotKeyState::Released {
+                        eprintln!("[PowerClip] Hotkey released - toggling window");
+                        let is_visible = win.is_visible().unwrap_or(false);
+                        if is_visible {
+                            let _ = win.hide();
+                        } else {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                            let _ = win.eval("setTimeout(() => document.querySelector('ul')?.focus(), 100)");
+                        }
+                    }
+                }));
+            }
+
+            // 设置窗口焦点监听，失去焦点时自动隐藏
+            // 同时设置 skipTaskbar 跳过任务栏显示
+            if let Some(window) = app.get_webview_window("main") {
+                let win_clone = window.clone();
+                let _ = window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Focused(focused) = event {
+                        if !focused {
+                            let _ = win_clone.hide();
+                        }
+                    }
+                });
+                // 跳过任务栏显示（只在 Dock 中显示）
+                let _ = window.set_skip_taskbar(true);
             }
 
             // macOS: 设置窗口透明
