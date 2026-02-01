@@ -29,6 +29,14 @@
     }
   },
   "bundle": {
-    "active": false
+    "active": true,
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "icon": [
+      "icons/icon.png"
+    ]
   }
 }

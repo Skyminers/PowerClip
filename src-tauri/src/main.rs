@@ -145,14 +145,16 @@ fn get_clipboard_content() -> Option<String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
+        // Use PowerShell to get clipboard text
         let output = Command::new("powershell")
-            .args(["-Command", "Get-Clipboard"])
+            .args(["-NoProfile", "-Command", "Get-Clipboard -TextFormatType Text"])
             .output()
             .ok()?;
         if output.status.success() {
-            let content = String::from_utf8(output.stdout).ok()?;
-            if !content.is_empty() {
-                return Some(content.trim_end().to_string());
+            let content = String::from_utf8_lossy(&output.stdout).into_owned();
+            let trimmed = content.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
             }
         }
         None
@@ -366,7 +368,15 @@ fn main() {
                     // 通过 JS 设置 webview 背景透明
                     let _ = window.eval("document.body.style.backgroundColor = 'transparent';");
                     let _ = window.eval("document.documentElement.style.backgroundColor = 'transparent';");
-                    eprintln!("[PowerClip] Transparent window enabled");
+                    eprintln!("[PowerClip] Transparent window enabled (macOS)");
+                }
+            }
+
+            // Windows: 确保窗口焦点正确
+            #[cfg(target_os = "windows")]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    eprintln!("[PowerClip] Window configured (Windows)");
                 }
             }
 
