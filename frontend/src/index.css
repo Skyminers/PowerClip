@@ -56,23 +56,24 @@ body {
   cursor: default;
 }
 
-/* Custom scrollbar */
+/* Hide scrollbar completely */
+.scrollbar-thin {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
 .scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
+  display: none !important;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(139, 142, 145, 0.4);
-  border-radius: 3px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 142, 145, 0.6);
+  display: none !important;
 }
 
 /* Focus outline */

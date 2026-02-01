@@ -71,6 +71,16 @@ function App() {
     }
   }, [filteredItems, selectedId])
 
+  // 自动滚动到选中项
+  useEffect(() => {
+    if (selectedId !== null && listRef.current) {
+      const selectedElement = listRef.current.querySelector(`[data-id="${selectedId}"]`)
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
+    }
+  }, [selectedId])
+
   // 键盘导航
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     const currentIndex = filteredItems.findIndex(item => item.id === selectedId)
@@ -193,6 +203,7 @@ function App() {
         {filteredItems.map((item, index) => (
           <li
             key={item.id}
+            data-id={item.id}
             className={`relative px-4 py-3 cursor-pointer transition-all duration-150 fade-in ${
               selectedId === item.id ? 'selected-pulse' : ''
             }`}
