@@ -293,6 +293,8 @@ fn main() {
                 .icon(icon)
                 .menu(&tray_menu)
                 .tooltip("PowerClip - 剪贴板历史")
+                // 只在右键时显示菜单
+                .show_menu_on_left_click(false)
                 .on_menu_event(move |app, event| {
                     match event.id.as_ref() {
                         "show" => {
@@ -308,12 +310,17 @@ fn main() {
                     }
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let tauri::tray::TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, .. } = event {
-                        if let Some(app) = tray.app_handle().get_webview_window("main") {
-                            let _ = app.show();
-                            let _ = app.set_focus();
+                    // 左键点击：显示窗口
+                    if let tauri::tray::TrayIconEvent::Click {
+                        button: tauri::tray::MouseButton::Left,
+                        ..
+                    } = event {
+                        if let Some(window) = tray.app_handle().get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
                         }
                     }
+                    // 右键点击由 show_menu_on_left_click(false) 自动处理显示菜单
                 })
                 .build(app)?;
 
