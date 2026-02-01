@@ -175,6 +175,36 @@ function App() {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => {
+            const currentIndex = filteredItems.findIndex(item => item.id === selectedId)
+
+            switch (e.key) {
+              case 'ArrowUp':
+                e.preventDefault()
+                if (currentIndex > 0) {
+                  setSelectedId(filteredItems[currentIndex - 1].id)
+                }
+                break
+              case 'ArrowDown':
+                e.preventDefault()
+                if (currentIndex < filteredItems.length - 1) {
+                  setSelectedId(filteredItems[currentIndex + 1].id)
+                }
+                break
+              case 'Enter':
+                e.preventDefault()
+                if (selectedId !== null) {
+                  const item = filteredItems.find(i => i.id === selectedId)
+                  if (item) copyItem(item)
+                }
+                break
+              case 'Escape':
+                e.preventDefault()
+                setSearchQuery('')
+                invoke('toggle_window')
+                break
+            }
+          }}
           placeholder="搜索..."
           className="flex-1 bg-transparent text-sm outline-none placeholder-gray-500 no-drag"
           style={{ color: colors.text }}
