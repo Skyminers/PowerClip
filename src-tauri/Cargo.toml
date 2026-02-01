@@ -9,7 +9,7 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "image", "image-png"] }
+tauri = { version = "2", features = [ "macos-private-api", "tray-icon", "image", "image-png"] }
 tauri-plugin-shell = "2"
 rusqlite = "0.31"
 chrono = "0.4"

@@ -3,6 +3,12 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 
+// 强制设置透明背景
+document.documentElement.style.backgroundColor = 'transparent'
+document.body.style.backgroundColor = 'transparent'
+document.documentElement.style.borderRadius = '16px'
+document.body.style.borderRadius = '16px'
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />

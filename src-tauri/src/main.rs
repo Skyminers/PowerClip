@@ -76,6 +76,14 @@ fn toggle_window(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn drag_window(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.start_dragging().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 fn init_database(data_dir: &PathBuf) -> Result<Connection, rusqlite::Error> {
     let db_path = data_dir.join("clipboard.db");
     let conn = Connection::open(&db_path)?;
@@ -145,7 +153,7 @@ fn get_clipboard_content() -> Option<String> {
     }
 }
 
-// macOS global hotkey monitoring using NSEvent
+// macOS global hotkey monitoring using AppleScript
 #[cfg(target_os = "macos")]
 fn start_hotkey_monitor(app: AppHandle) {
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -155,19 +163,6 @@ fn start_hotkey_monitor(app: AppHandle) {
 
     thread::spawn(move || {
         while running.load(Ordering::Relaxed) {
-            // Use AppleScript to check for hotkey - workaround for accessibility
-            thread::sleep(Duration::from_millis(100));
-        }
-    });
-
-    // Register hotkey via accessibility API using a helper
-    thread::spawn(move || {
-        let app_handle = app_clone;
-        loop {
-            thread::sleep(Duration::from_millis(50));
-
-            // Check if Cmd+Shift+V is pressed by reading keyboard state
-            // This is a simplified approach - for production, use CGEventTap with proper permissions
             let output = std::process::Command::new("osascript")
                 .args(["-e", "
                     tell application \"System Events\"
@@ -185,7 +180,7 @@ fn start_hotkey_monitor(app: AppHandle) {
                     if result.status.success() {
                         let output_str = String::from_utf8_lossy(&result.stdout);
                         if output_str.trim() == "true" {
-                            if let Some(window) = app_handle.get_webview_window("main") {
+                            if let Some(window) = app_clone.get_webview_window("main") {
                                 let is_visible = window.is_visible().unwrap_or(false);
                                 if is_visible {
                                     let _ = window.hide();
@@ -194,20 +189,17 @@ fn start_hotkey_monitor(app: AppHandle) {
                                     let _ = window.set_focus();
                                 }
                             }
-                            // Debounce - wait before checking again
                             thread::sleep(Duration::from_millis(500));
                         }
                     }
                 }
-                Err(_) => {
-                    // Accessibility permission not granted, use tray icon instead
-                }
+                Err(_) => {}
             }
+            thread::sleep(Duration::from_millis(50));
         }
     });
 }
 
-// Windows/Linux: Simple timer-based polling for hotkey
 #[cfg(not(target_os = "macos"))]
 fn start_hotkey_monitor(app: AppHandle) {
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -215,13 +207,7 @@ fn start_hotkey_monitor(app: AppHandle) {
     let app = app.clone();
 
     thread::spawn(move || {
-        let mut last_ctrl_pressed = false;
-        let mut last_shift_pressed = false;
-        let mut last_v_pressed = false;
-
         while running.load(Ordering::Relaxed) {
-            // This is a simplified approach - for production on Windows,
-            // use a proper keyboard hook library like `rdev` or `windows`
             thread::sleep(Duration::from_millis(50));
         }
     });
@@ -341,12 +327,24 @@ fn main() {
                 start_hotkey_monitor(app_handle.clone());
             }
 
+            // macOS: 设置窗口透明
+            #[cfg(target_os = "macos")]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    // 通过 JS 设置 webview 背景透明
+                    let _ = window.eval("document.body.style.backgroundColor = 'transparent';");
+                    let _ = window.eval("document.documentElement.style.backgroundColor = 'transparent';");
+                    eprintln!("[PowerClip] Transparent window enabled");
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_history,
             copy_to_clipboard,
-            toggle_window
+            toggle_window,
+            drag_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

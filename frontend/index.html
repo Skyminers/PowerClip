@@ -1,12 +1,37 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" style="background: transparent !important; border-radius: 16px;">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PowerClip</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        border: none !important;
+        outline: none !important;
+      }
+      html, body {
+        width: 100%;
+        height: 100%;
+        background: transparent !important;
+        overflow: hidden;
+        border-radius: 16px;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+        background: transparent !important;
+      }
+      body {
+        -webkit-appearance: none;
+        appearance: none;
+      }
+    </style>
   </head>
-  <body>
-    <div id="root"></div>
+  <body style="background: transparent !important; border-radius: 16px;">
+    <div id="root" style="background: transparent !important;"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

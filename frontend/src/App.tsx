@@ -15,6 +15,16 @@ const colors = {
   selected: '#585b70',
 }
 
+// 窗口拖动处理函数
+function handleDragStart(e: React.MouseEvent) {
+  const target = e.target as HTMLElement
+  // 排除输入框和按钮
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.closest('button')) {
+    return
+  }
+  invoke('drag_window').catch(console.error)
+}
+
 function App() {
   const [items, setItems] = useState<ClipboardItem[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -140,14 +150,12 @@ function App() {
   }
 
   return (
-    <div
-      className="window-frame w-full h-full flex flex-col text-white"
-      style={{ backgroundColor: colors.bg }}
-    >
+    <div className="window-wrapper w-full h-full flex flex-col text-white">
       {/* 搜索栏 - 可拖动区域 */}
       <div
-        className="drag-region flex items-center gap-3 px-4 py-3 border-b"
-        style={{ backgroundColor: colors.bgSecondary, borderColor: colors.border }}
+        className="drag-region flex items-center gap-3 px-4 py-3"
+        style={{ backgroundColor: colors.bgSecondary }}
+        onMouseDown={handleDragStart}
       >
         <svg className="w-4 h-4 flex-shrink-0" style={{ color: colors.textMuted }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -190,7 +198,6 @@ function App() {
             }`}
             style={{
               backgroundColor: selectedId === item.id ? colors.selected : 'transparent',
-              borderBottom: `1px solid ${colors.border}20`,
             }}
             onClick={() => setSelectedId(item.id)}
             onDoubleClick={() => copyItem(item)}
@@ -276,7 +283,7 @@ function App() {
       {/* 状态栏 */}
       <div
         className="flex items-center justify-between px-4 py-2 text-xs"
-        style={{ backgroundColor: colors.bgSecondary, borderTop: `1px solid ${colors.border}` }}
+        style={{ backgroundColor: colors.bgSecondary }}
       >
         <div className="flex items-center gap-4" style={{ color: colors.textMuted }}>
           <span>{filteredItems.length} / {items.length} 条</span>
