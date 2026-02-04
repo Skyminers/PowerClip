@@ -3,26 +3,109 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 
-// 强制设置透明背景
+// ============== Logging System ==============
+type LogLevel = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR'
+
+interface LogEntry {
+  timestamp: string
+  level: LogLevel
+  module: string
+  message: string
+}
+
+const LOG_LEVELS: Record<LogLevel, number> = {
+  DEBUG: 0,
+  INFO: 1,
+  WARNING: 2,
+  ERROR: 3,
+}
+
+const currentLevel: LogLevel = import.meta.env.DEV ? 'DEBUG' : 'INFO'
+
+const logs: LogEntry[] = []
+
+function getTimestamp(): string {
+  const now = new Date()
+  return now.toISOString().replace('T', ' ').slice(0, 23)
+}
+
+function formatLog(entry: LogEntry): string {
+  return `[${entry.timestamp}] [${entry.level}] [${entry.module}] ${entry.message}`
+}
+
+function log(level: LogLevel, module: string, message: string): void {
+  if (LOG_LEVELS[level] < LOG_LEVELS[currentLevel]) {
+    return
+  }
+
+  const entry: LogEntry = {
+    timestamp: getTimestamp(),
+    level,
+    module,
+    message,
+  }
+
+  logs.push(entry)
+
+  // Keep only last 1000 logs in memory
+  if (logs.length > 1000) {
+    logs.shift()
+  }
+
+  // Output to console
+  const formatted = formatLog(entry)
+  switch (level) {
+    case 'DEBUG':
+      console.debug(formatted)
+      break
+    case 'INFO':
+      console.info(formatted)
+      break
+    case 'WARNING':
+      console.warn(formatted)
+      break
+    case 'ERROR':
+      console.error(formatted)
+      break
+  }
+}
+
+// Logger API
+window.powerclipLogger = {
+  debug: (module: string, message: string) => log('DEBUG', module, message),
+  info: (module: string, message: string) => log('INFO', module, message),
+  warning: (module: string, message: string) => log('WARNING', module, message),
+  error: (module: string, message: string) => log('ERROR', module, message),
+  getLogs: () => [...logs],
+  clearLogs: () => { logs.length = 0 },
+}
+
+// ============== Application ==============
+
+// Set transparent background
 document.documentElement.style.backgroundColor = 'transparent'
 document.body.style.backgroundColor = 'transparent'
 document.documentElement.style.borderRadius = '16px'
 document.body.style.borderRadius = '16px'
 
+// Initialize React app
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,
 )
 
-// Tauri 快捷键监听
+// Keyboard shortcut listener
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     window.close()
   }
 })
 
-// 暴露复制函数给 Rust 后端调用
+// Expose clipboard function for Rust backend
 (window as any).copyToSystemClipboard = (content: string) => {
   navigator.clipboard.writeText(content).catch(console.error)
 }
+
+// Log application startup
+console.info('[PowerClip] Frontend initialized')
