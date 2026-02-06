@@ -1,0 +1,302 @@
+//! Commands module - Tauri commands for frontend
+//!
+//! All Tauri commands are defined here for better organization.
+
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::{Mutex, LazyLock};
+
+use image::{GenericImageView, ImageFormat, ImageReader, RgbaImage};
+use serde::Serialize;
+use std::io::Cursor;
+
+use crate::clipboard::{self, ClipboardContent};
+use crate::db::{self, ClipboardItem as DbClipboardItem};
+use crate::logger;
+use crate::APP_NAME;
+
+/// Clipboard item returned to frontend
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct ClipboardItem {
+    pub id: i64,
+    pub item_type: String,
+    pub content: String,
+    pub hash: String,
+    pub created_at: String,
+}
+
+/// Image cache for clipboard images (store in memory to avoid file path issues)
+#[derive(Debug)]
+struct ImageCache {
+    images: Mutex<HashMap<String, Vec<u8>>>,
+}
+
+impl ImageCache {
+    fn new() -> Self {
+        Self {
+            images: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn get(&self, hash: &str) -> Option<Vec<u8>> {
+        self.images.lock().unwrap().get(hash).cloned()
+    }
+
+    fn insert(&self, hash: String, data: Vec<u8>) {
+        self.images.lock().unwrap().insert(hash, data);
+    }
+
+    fn clear(&self) {
+        self.images.lock().unwrap().clear();
+    }
+}
+
+/// Global image cache
+static IMAGE_CACHE: LazyLock<ImageCache> = LazyLock::new(|| ImageCache::new());
+
+/// Convert database item to API item
+impl From<DbClipboardItem> for ClipboardItem {
+    fn from(item: DbClipboardItem) -> Self {
+        Self {
+            id: item.id,
+            item_type: item.item_type,
+            content: item.content,
+            hash: item.hash,
+            created_at: item.created_at,
+        }
+    }
+}
+
+/// Get clipboard history
+#[tauri::command]
+pub async fn get_history(
+    state: tauri::State<'_, crate::DatabaseState>,
+    limit: i64,
+) -> Result<Vec<ClipboardItem>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let items = db::get_history(&conn, limit).map_err(|e| e.to_string())?;
+    logger::debug("Commands", &format!("Retrieved {} history items", items.len()));
+    Ok(items.into_iter().map(|i| i.into()).collect())
+}
+
+/// Copy item to system clipboard
+///
+/// This is the main function for copying clipboard history items.
+/// It properly handles both text and images using arboard.
+#[tauri::command]
+pub async fn copy_to_clipboard(
+    item: ClipboardItem,
+    _state: tauri::State<'_, crate::DatabaseState>,
+) -> Result<(), String> {
+    logger::info("Commands", &format!("copy_to_clipboard id={}, type={}", item.id, item.item_type));
+
+    if item.item_type == "image" {
+        // Try to copy from image cache first
+        if let Some(image_data) = IMAGE_CACHE.get(&item.hash) {
+            copy_image_from_bytes(&image_data)?;
+            logger::debug("Commands", &format!("Image copied from cache: {} bytes", image_data.len()));
+            return Ok(());
+        }
+
+        // Fallback: load from file
+        copy_image_to_clipboard(&item.content).await?;
+    } else {
+        // Copy text to clipboard
+        copy_text_to_clipboard(&item.content).await?;
+    }
+
+    logger::debug("Commands", "Item copied to system clipboard");
+    Ok(())
+}
+
+/// Copy text content to system clipboard using arboard
+#[inline]
+async fn copy_text_to_clipboard(content: &str) -> Result<(), String> {
+    clipboard::set_clipboard_text(content).map_err(|e| e.to_string())?;
+    logger::debug("Commands", &format!("Text copied: {} chars", content.len()));
+    Ok(())
+}
+
+/// Copy image from raw bytes to clipboard
+fn copy_image_from_bytes(image_bytes: &[u8]) -> Result<(), String> {
+    // Load image
+    let img = ImageReader::new(Cursor::new(image_bytes))
+        .with_guessed_format()
+        .map_err(|e| e.to_string())?
+        .decode()
+        .map_err(|e| e.to_string())?;
+
+    let (width, height) = img.dimensions();
+    let rgba = img.to_rgba8();
+
+    clipboard::set_clipboard_image(width, height, &rgba).map_err(|e| e.to_string())?;
+    logger::debug("Commands", &format!("Image copied from bytes: {}x{}", width, height));
+
+    Ok(())
+}
+
+/// Copy image to system clipboard using arboard (from file path)
+#[inline]
+async fn copy_image_to_clipboard(content: &str) -> Result<(), String> {
+    let data_dir = get_data_dir_path();
+    let image_path = data_dir.join(content);
+
+    logger::debug("Commands", &format!("Loading image from: {:?}", image_path));
+
+    // Load image from file
+    let img = ImageReader::open(&image_path)
+        .map_err(|e| e.to_string())?
+        .decode()
+        .map_err(|e| e.to_string())?;
+
+    let (width, height) = img.dimensions();
+    let rgba = img.to_rgba8();
+
+    clipboard::set_clipboard_image(width, height, &rgba).map_err(|e| e.to_string())?;
+    logger::debug("Commands", &format!("Image copied: {}x{}", width, height));
+
+    Ok(())
+}
+
+/// Get data directory path
+#[inline]
+fn get_data_dir_path() -> PathBuf {
+    dirs::data_dir()
+        .unwrap_or(PathBuf::from("."))
+        .join(APP_NAME)
+}
+
+/// Toggle window visibility
+#[tauri::command]
+pub async fn toggle_window(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    if let Some(window) = app.get_webview_window("main") {
+        crate::window::WindowManager::toggle(&window)?;
+    }
+    Ok(())
+}
+
+/// Start window dragging
+#[tauri::command]
+pub async fn drag_window(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    if let Some(window) = app.get_webview_window("main") {
+        crate::window::WindowManager::start_dragging(&window)?;
+    }
+    Ok(())
+}
+
+/// Get application data directory
+#[tauri::command]
+pub async fn get_data_dir() -> Result<String, String> {
+    let data_dir = get_data_dir_path();
+    let path = data_dir.to_string_lossy().to_string();
+    logger::debug("Commands", &format!("get_data_dir: {}", path));
+    Ok(path)
+}
+
+/// Get full path for a relative image path
+#[tauri::command]
+pub async fn get_image_full_path(relative_path: String) -> Result<String, String> {
+    let data_dir = get_data_dir_path();
+    let full_path = data_dir.join(relative_path.clone());
+    let path = full_path.to_string_lossy().to_string();
+    logger::debug("Commands", &format!("get_image_full_path: {} -> {}", relative_path, path));
+    Ok(path)
+}
+
+/// Delete a clipboard history item
+#[tauri::command]
+pub async fn delete_item(
+    id: i64,
+    state: tauri::State<'_, crate::DatabaseState>,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    db::delete_item(&conn, id).map_err(|e| e.to_string())?;
+    logger::info("Commands", &format!("Deleted item id={}", id));
+    Ok(())
+}
+
+/// Clear all clipboard history
+#[tauri::command]
+pub async fn clear_history(
+    state: tauri::State<'_, crate::DatabaseState>,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    db::clear_history(&conn).map_err(|e| e.to_string())?;
+    IMAGE_CACHE.clear();
+    logger::info("Commands", "Cleared all history");
+    Ok(())
+}
+
+/// Check clipboard for new content and save to database
+///
+/// This is the main function called by the clipboard monitor.
+/// It reads the clipboard using arboard and saves new content.
+#[tauri::command]
+pub async fn check_clipboard(
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    use tauri::Manager;
+
+    let Some(content) = clipboard::get_clipboard_content() else {
+        return Ok(());
+    };
+
+    match content {
+        ClipboardContent::Text(text) => {
+            let hash = db::calculate_hash(text.as_bytes());
+
+            let state = app.state::<crate::DatabaseState>();
+            let conn = state.conn.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+
+            db::save_item(&conn, "text", &text, &hash).map_err(|e| e.to_string())?;
+            logger::debug("Commands", &format!("Text saved: {} chars, hash={}", text.len(), &hash[..8]));
+        }
+        ClipboardContent::Image(image) => {
+            // Calculate hash
+            let hash = db::calculate_hash(&image.bytes);
+
+            // Check if already exists
+            let state = app.state::<crate::DatabaseState>();
+            let conn = state.conn.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+            let exists: Result<Option<i64>, _> = conn.query_row(
+                "SELECT id FROM history WHERE hash = ?",
+                [&hash],
+                |row: &rusqlite::Row| row.get(0),
+            );
+
+            // Only save if new
+            match exists {
+                Ok(Some(_)) => {
+                    logger::debug("Commands", &format!("Image already exists: hash={}", &hash[..8]));
+                }
+                _ => {
+                    // Save image to file
+                    let images_dir = get_data_dir_path().join("images");
+                    fs::create_dir_all(&images_dir).map_err(|e| e.to_string())?;
+
+                    let image_path = images_dir.join(&format!("{}.png", hash));
+
+                    // Save as PNG
+                    let rgba = RgbaImage::from_vec(image.width, image.height, image.bytes)
+                        .ok_or_else(|| "Failed to create image buffer".to_string())?;
+
+                    rgba.save_with_format(&image_path, ImageFormat::Png)
+                        .map_err(|e| e.to_string())?;
+
+                    // Cache image in memory
+                    let image_data = std::fs::read(&image_path).map_err(|e| e.to_string())?;
+                    IMAGE_CACHE.insert(hash.clone(), image_data);
+
+                    let relative_path = format!("images/{}.png", hash);
+                    db::save_item(&conn, "image", &relative_path, &hash).map_err(|e| e.to_string())?;
+                    logger::debug("Commands", &format!("Image saved: {}x{}, hash={}", image.width, image.height, &hash[..8]));
+                }
+            }
+        }
+    }
+
+    Ok(())
+}

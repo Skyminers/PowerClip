@@ -9,16 +9,19 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [ "macos-private-api", "tray-icon", "image", "image-png"] }
+tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image", "image-png"] }
 tauri-plugin-shell = "2"
-global-hotkey = "0.5"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
 rusqlite = "0.31"
 chrono = "0.4"
 md5 = "0.7"
-dirs = "5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-base64 = "0.22"
+arboard = "3"
+image = "0.25"
+dirs = "5"
+cfg-if = "1"
+global-hotkey = "0.5"
 
 [features]
 default = ["custom-protocol"]

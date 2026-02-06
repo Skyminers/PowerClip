@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { invoke } from '@tauri-apps/api/core'
 import App from './App'
 import './index.css'
 
@@ -102,9 +103,14 @@ window.addEventListener('keydown', (e) => {
   }
 })
 
-// Expose clipboard function for Rust backend
-(window as any).copyToSystemClipboard = (content: string) => {
-  navigator.clipboard.writeText(content).catch(console.error)
+// Clipboard check function - called by Rust backend monitor thread
+(window as any).__powerclip_check_clipboard = async () => {
+  try {
+    // Invoke Rust command to check clipboard
+    await invoke('check_clipboard')
+  } catch (e) {
+    // Ignore errors - clipboard might be empty or inaccessible
+  }
 }
 
 // Log application startup

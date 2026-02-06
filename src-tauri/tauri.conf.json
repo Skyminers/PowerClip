@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.powerclip.app",
   "build": {
-    "beforeDevCommand": "cd ../frontend && bun dev",
+    "beforeDevCommand": "cd /Users/sky_miner/Documents/Project/PowerClip/frontend && bun dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "cd ../frontend && bun run build.ts"
+    "beforeBuildCommand": "cd /Users/sky_miner/Documents/Project/PowerClip/frontend && bun run build.ts"
   },
   "app": {
     "withGlobalTauri": true,

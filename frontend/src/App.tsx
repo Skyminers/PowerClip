@@ -230,7 +230,7 @@ function ClipboardListItem({
               className="text-xs px-2 py-0.5 rounded"
               style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: colors.text }}
             >
-              ⌘{index + 1}
+              {isDarwin ? '⌘' : 'Ctrl'}{index + 1}
             </span>
           )}
         </div>
@@ -327,6 +327,23 @@ function App() {
     return filteredItems.findIndex(item => item.id === selectedId)
   }, [filteredItems, selectedId])
 
+  // Copy item to clipboard (now uses Rust backend with arboard)
+  const copyItem = useCallback(async (item: ClipboardItem) => {
+    logger.info('App', `Copying item id=${item.id}, type=${item.item_type}`)
+    try {
+      // Call Rust backend to copy using arboard
+      await invoke('copy_to_clipboard', { item })
+      logger.info('App', 'Item copied to system clipboard via Rust')
+
+      // Toggle window after copy
+      await invoke('toggle_window')
+      logger.info('App', 'Window toggled after copy')
+    } catch (error) {
+      logger.error('App', `Failed to copy item: ${error}`)
+      console.error('Failed to copy:', error)
+    }
+  }, [])
+
   // Fetch history data
   const fetchHistory = useCallback(async () => {
     try {
@@ -383,20 +400,6 @@ function App() {
       }
     }
   }, [selectedId])
-
-  // Copy item to clipboard
-  const copyItem = useCallback(async (item: ClipboardItem) => {
-    logger.info('App', `Copying item id=${item.id}, type=${item.item_type}`)
-    try {
-      await invoke('copy_to_clipboard', { item })
-      logger.info('App', 'Copy command executed, toggling window')
-      await invoke('toggle_window')
-      logger.info('App', 'Window hidden after copy')
-    } catch (error) {
-      logger.error('App', `Failed to copy item: ${error}`)
-      console.error('Failed to copy:', error)
-    }
-  }, [])
 
   // Handle keyboard navigation
   const handleNavigation = useCallback((action: 'up' | 'down' | 'select' | 'close' | 'focusSearch') => {
