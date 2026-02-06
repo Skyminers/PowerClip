@@ -1,6 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { ClipboardItem } from './types'
+import {
+  HISTORY_LIMIT,
+  PREVIEW_MAX_LENGTH,
+  CONTENT_TRUNCATE_LENGTH,
+  REFRESH_INTERVAL_MS,
+} from './constants'
+import { theme } from './theme'
+
+// Type aliases for convenience
+const colors = theme.colors
+type ImageCache = Record<string, string>
 
 // ============== Logger ==============
 const logger = {
@@ -17,28 +28,6 @@ const logger = {
     (window as any).powerclipLogger?.error(module, message)
   },
 }
-
-// ============== Constants ==============
-const HISTORY_LIMIT = 50
-const PREVIEW_MAX_LENGTH = 200
-const CONTENT_TRUNCATE_LENGTH = 50
-const REFRESH_INTERVAL_MS = 1000
-const IMAGE_PREVIEW_MAX_WIDTH = 120
-const IMAGE_PREVIEW_MAX_HEIGHT = 80
-
-// ============== Theme Colors ==============
-const colors = {
-  bg: '#1e1e2e',
-  bgSecondary: '#29293f',
-  bgHover: '#3a3a4f',
-  text: '#cdd6f4',
-  textMuted: '#6c7086',
-  accent: '#89b4fa',
-  border: '#45475a',
-  selected: '#585b70',
-} as const
-
-type ImageCache = Record<string, string>
 
 // ============== Helper Functions ==============
 function formatTime(createdAt: string): string {

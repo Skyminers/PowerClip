@@ -4,7 +4,6 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
 use std::sync::{Mutex, LazyLock};
 
 use image::{GenericImageView, ImageFormat, ImageReader, RgbaImage};
@@ -14,7 +13,7 @@ use std::io::Cursor;
 use crate::clipboard::{self, ClipboardContent};
 use crate::db::{self, ClipboardItem as DbClipboardItem};
 use crate::logger;
-use crate::APP_NAME;
+use crate::config::{data_dir, images_dir};
 
 /// Clipboard item returned to frontend
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
@@ -139,7 +138,7 @@ fn copy_image_from_bytes(image_bytes: &[u8]) -> Result<(), String> {
 /// Copy image to system clipboard using arboard (from file path)
 #[inline]
 async fn copy_image_to_clipboard(content: &str) -> Result<(), String> {
-    let data_dir = get_data_dir_path();
+    let data_dir = data_dir();
     let image_path = data_dir.join(content);
 
     logger::debug("Commands", &format!("Loading image from: {:?}", image_path));
@@ -157,14 +156,6 @@ async fn copy_image_to_clipboard(content: &str) -> Result<(), String> {
     logger::debug("Commands", &format!("Image copied: {}x{}", width, height));
 
     Ok(())
-}
-
-/// Get data directory path
-#[inline]
-fn get_data_dir_path() -> PathBuf {
-    dirs::data_dir()
-        .unwrap_or(PathBuf::from("."))
-        .join(APP_NAME)
 }
 
 /// Toggle window visibility
@@ -190,7 +181,7 @@ pub async fn drag_window(app: tauri::AppHandle) -> Result<(), String> {
 /// Get application data directory
 #[tauri::command]
 pub async fn get_data_dir() -> Result<String, String> {
-    let data_dir = get_data_dir_path();
+    let data_dir = data_dir();
     let path = data_dir.to_string_lossy().to_string();
     logger::debug("Commands", &format!("get_data_dir: {}", path));
     Ok(path)
@@ -199,7 +190,7 @@ pub async fn get_data_dir() -> Result<String, String> {
 /// Get full path for a relative image path
 #[tauri::command]
 pub async fn get_image_full_path(relative_path: String) -> Result<String, String> {
-    let data_dir = get_data_dir_path();
+    let data_dir = data_dir();
     let full_path = data_dir.join(relative_path.clone());
     let path = full_path.to_string_lossy().to_string();
     logger::debug("Commands", &format!("get_image_full_path: {} -> {}", relative_path, path));
@@ -209,7 +200,7 @@ pub async fn get_image_full_path(relative_path: String) -> Result<String, String
 /// Get asset URL for an image path (for frontend display)
 #[tauri::command]
 pub async fn get_image_asset_url(relative_path: String) -> Result<String, String> {
-    let data_dir = get_data_dir_path();
+    let data_dir = data_dir();
     let full_path = data_dir.join(&relative_path);
 
     // Check if file exists
@@ -309,10 +300,10 @@ pub async fn check_clipboard(
                 }
                 _ => {
                     // Save image to file
-                    let images_dir = get_data_dir_path().join("images");
-                    fs::create_dir_all(&images_dir).map_err(|e| e.to_string())?;
+                    let images = images_dir();
+                    fs::create_dir_all(&images).map_err(|e| e.to_string())?;
 
-                    let image_path = images_dir.join(&format!("{}.png", hash));
+                    let image_path = images.join(&format!("{}.png", hash));
 
                     // Save as PNG
                     let rgba = RgbaImage::from_vec(image.width, image.height, image.bytes)

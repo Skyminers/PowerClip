@@ -6,14 +6,6 @@ export interface ClipboardItem {
   created_at: string;
 }
 
-export interface HistoryItem {
-  id: number;
-  type: string;
-  content: string;
-  hash: string;
-  created_at: string;
-}
-
 export interface LogEntry {
   timestamp: string;
   level: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';

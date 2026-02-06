@@ -1,11 +1,9 @@
 //! Database module - SQLite operations for clipboard history
 
-use std::path::PathBuf;
-
 use rusqlite::Connection;
 
+use crate::config::{db_path, HISTORY_LIMIT};
 use crate::logger;
-use crate::HISTORY_LIMIT;
 
 /// Clipboard history item stored in database
 #[derive(Debug, Clone)]
@@ -25,9 +23,9 @@ pub struct DatabaseState {
 
 impl DatabaseState {
     /// Create a new database state with initialized connection
-    pub fn new(data_dir: &PathBuf) -> Result<Self, rusqlite::Error> {
-        let db_path = data_dir.join("clipboard.db");
-        let conn = Connection::open(&db_path)?;
+    pub fn new(_data_dir: &std::path::PathBuf) -> Result<Self, rusqlite::Error> {
+        let db = db_path();
+        let conn = Connection::open(&db)?;
 
         // Create table
         conn.execute(
@@ -45,7 +43,7 @@ impl DatabaseState {
         conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON history(created_at)", ())?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_hash ON history(hash)", ())?;
 
-        logger::info("Database", &format!("Database initialized at {:?}", db_path));
+        logger::info("Database", &format!("Database initialized at {:?}", db));
 
         Ok(Self {
             conn: std::sync::Mutex::new(conn),

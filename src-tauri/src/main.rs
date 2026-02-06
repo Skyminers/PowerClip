@@ -7,39 +7,38 @@
     windows_subsystem = "windows"
 )]
 
-/// Application constants
-pub const APP_NAME: &str = "PowerClip";
-pub const HISTORY_LIMIT: i64 = 1000;
-pub const CLIPBOARD_POLL_INTERVAL_MS: u64 = 300;
-
-/// Re-export modules for easier access
+// Re-export modules for easier access
 pub mod logger;
 mod clipboard;
 mod db;
 mod hotkey;
 mod window;
-mod window_config;
 mod commands;
+mod config;
+mod window_config;
 
-/// Re-export types used by commands
+// Re-export types used by commands
 pub use commands::ClipboardItem;
 pub use commands::check_clipboard;
 pub use db::DatabaseState;
 pub use hotkey::HotkeyState;
 
-/// Monitor module - Clipboard monitoring
+// Monitor module - Clipboard monitoring
 mod monitor;
-
-use std::path::PathBuf;
 
 use tauri::{
     image::Image as TauriImage,
     tray::TrayIconBuilder,
     menu::MenuBuilder,
     Manager,
+    Size,
+    PhysicalSize,
+    Position,
+    PhysicalPosition,
 };
 
 use crate::window::{setup_window_behavior, setup_window_transparency, save_window_state, get_window_state, move_window};
+use crate::config::{data_dir, APP_NAME};
 
 /// Initialize system tray
 #[inline]
@@ -106,15 +105,13 @@ fn setup_tray(app: &tauri::App) -> Result<(), String> {
 /// Initialize application
 #[inline]
 fn initialize_app(app: &tauri::App) -> Result<(), String> {
-    let data_dir = dirs::data_dir()
-        .unwrap_or(PathBuf::from("."))
-        .join(APP_NAME);
-    std::fs::create_dir_all(&data_dir).ok();
+    // Ensure directories exist
+    crate::config::ensure_dirs();
 
-    crate::logger::info("Main", &format!("Data directory: {:?}", data_dir));
+    crate::logger::info("Main", &format!("Data directory: {:?}", data_dir()));
 
     // Initialize database
-    let conn = db::DatabaseState::new(&data_dir).map_err(|e| {
+    let conn = db::DatabaseState::new(data_dir()).map_err(|e| {
         crate::logger::error("Main", &format!("Database initialization failed: {}", e));
         e.to_string()
     })?;
@@ -149,9 +146,9 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
 
     // Apply saved window position and size
     if let Ok(config) = window_config::load_window_config() {
-        let size = tauri::Size::Physical(tauri::PhysicalSize::new(config.width, config.height));
+        let size = Size::Physical(PhysicalSize::new(config.width, config.height));
         let _ = window.set_size(size);
-        let position = tauri::Position::Physical(tauri::PhysicalPosition::new(config.x, config.y));
+        let position = Position::Physical(PhysicalPosition::new(config.x, config.y));
         let _ = window.set_position(position);
         crate::logger::info("Main", &format!("Restored window: {}x{} at ({},{})", config.width, config.height, config.x, config.y));
     }
@@ -161,7 +158,7 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
     hotkey::register_hotkey(&guard, &window)?;
     drop(guard);
     setup_window_behavior(app)?;
-    setup_window_transparency(app);
+    setup_window_transparency(app)?;
 
     crate::logger::info("Main", "Application initialization complete");
     Ok(())
