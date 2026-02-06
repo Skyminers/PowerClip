@@ -177,6 +177,7 @@ async fn main() {
             commands::drag_window,
             commands::get_data_dir,
             commands::get_image_full_path,
+            commands::get_image_asset_url,
             commands::check_clipboard,
             commands::delete_item,
             commands::clear_history,

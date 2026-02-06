@@ -206,6 +206,41 @@ pub async fn get_image_full_path(relative_path: String) -> Result<String, String
     Ok(path)
 }
 
+/// Get asset URL for an image path (for frontend display)
+#[tauri::command]
+pub async fn get_image_asset_url(relative_path: String) -> Result<String, String> {
+    let data_dir = get_data_dir_path();
+    let full_path = data_dir.join(&relative_path);
+
+    // Check if file exists
+    if !full_path.exists() {
+        logger::debug("Commands", &format!("Image file not found: {:?}", full_path));
+        return Err(format!("Image file not found: {:?}", full_path));
+    }
+
+    // Read image file and convert to base64 data URL
+    let image_data = std::fs::read(&full_path).map_err(|e| e.to_string())?;
+
+    // Try to detect format from content
+    let mime_type = if image_data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+        "image/png"
+    } else if image_data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        "image/jpeg"
+    } else if image_data.starts_with(&[0x47, 0x49, 0x46, 0x38]) {
+        "image/gif"
+    } else {
+        "image/png" // default to PNG
+    };
+
+    // Convert to base64
+    let base64_data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &image_data);
+    let data_url = format!("data:{};base64,{}", mime_type, base64_data);
+
+    logger::debug("Commands", &format!("get_image_asset_url: {} -> data:{};base64,... ({} bytes)",
+        relative_path, mime_type, image_data.len()));
+    Ok(data_url)
+}
+
 /// Delete a clipboard history item
 #[tauri::command]
 pub async fn delete_item(

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { invoke, convertFileSrc } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/core'
 import type { ClipboardItem } from './types'
 
 // ============== Logger ==============
@@ -187,13 +187,15 @@ function ClipboardListItem({
             ) : (
               <div className="flex flex-col gap-1">
                 <p className="text-xs" style={{ color: colors.textMuted }}>图片</p>
-                {isSelected && imageCache[item.content] && (
+                {imageCache[item.content] ? (
                   <img
                     src={imageCache[item.content]}
                     alt="Clipboard image"
                     className="max-w-[120px] max-h-[80px] object-contain rounded border"
                     style={{ borderColor: colors.border }}
                   />
+                ) : (
+                  <span className="text-xs" style={{ color: colors.textMuted }}>加载中...</span>
                 )}
               </div>
             )}
@@ -353,29 +355,34 @@ function App() {
 
       setItems(result)
 
-      // Load image paths using convertFileSrc
+      // Load image data URLs in parallel
+      const imageItems = result.filter(
+        (item: ClipboardItem) => item.item_type === 'image'
+      )
+      if (imageItems.length === 0) return
+
       const newPaths: ImageCache = {}
-      let imageCount = 0
-      for (const item of result) {
-        if (item.item_type === 'image' && !imageCache[item.content]) {
-          const fullPath = await invoke<string>('get_image_full_path', { path: item.content })
-          const assetUrl = convertFileSrc(fullPath)
-          logger.debug('App', `Image path: ${item.content} -> ${assetUrl}`)
-          newPaths[item.content] = assetUrl
-          imageCount++
+      const loadPromises = imageItems.map(async (item: ClipboardItem) => {
+        try {
+          const dataUrl = await invoke<string>('get_image_asset_url', { relativePath: item.content })
+          logger.debug('App', `Image loaded: ${item.content}`)
+          newPaths[item.content] = dataUrl
+        } catch (e) {
+          logger.error('App', `Failed to load image: ${item.content}, error: ${e}`)
         }
-      }
-      if (imageCount > 0) {
-        logger.info('App', `Loaded ${imageCount} image paths`)
-      }
+      })
+
+      await Promise.all(loadPromises)
+
       if (Object.keys(newPaths).length > 0) {
         setImageCache(prev => ({ ...prev, ...newPaths }))
+        logger.info('App', `Loaded ${Object.keys(newPaths).length} image URLs`)
       }
     } catch (error) {
       logger.error('App', `Failed to fetch history: ${error}`)
       console.error('Failed to fetch history:', error)
     }
-  }, [imageCache])
+  }, [])
 
   // Initialize data
   useEffect(() => {
