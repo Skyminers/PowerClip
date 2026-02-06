@@ -18,6 +18,7 @@ mod clipboard;
 mod db;
 mod hotkey;
 mod window;
+mod window_config;
 mod commands;
 
 /// Re-export types used by commands
@@ -38,7 +39,7 @@ use tauri::{
     Manager,
 };
 
-use crate::window::{setup_window_behavior, setup_window_transparency};
+use crate::window::{setup_window_behavior, setup_window_transparency, save_window_state, get_window_state, move_window};
 
 /// Initialize system tray
 #[inline]
@@ -145,6 +146,16 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
 
     // Setup window
     let window = app.get_webview_window("main").unwrap();
+
+    // Apply saved window position and size
+    if let Ok(config) = window_config::load_window_config() {
+        let size = tauri::Size::Physical(tauri::PhysicalSize::new(config.width, config.height));
+        let _ = window.set_size(size);
+        let position = tauri::Position::Physical(tauri::PhysicalPosition::new(config.x, config.y));
+        let _ = window.set_position(position);
+        crate::logger::info("Main", &format!("Restored window: {}x{} at ({},{})", config.width, config.height, config.x, config.y));
+    }
+
     let manager = app.state::<HotkeyState>();
     let guard = manager.manager.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
     hotkey::register_hotkey(&guard, &window)?;
@@ -181,6 +192,9 @@ async fn main() {
             commands::check_clipboard,
             commands::delete_item,
             commands::clear_history,
+            save_window_state,
+            get_window_state,
+            move_window,
         ])
         .run(tauri::generate_context!())
         .expect("Fatal error while running tauri application");

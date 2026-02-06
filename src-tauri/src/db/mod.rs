@@ -137,33 +137,6 @@ pub fn get_history(
     Ok(items)
 }
 
-/// Get a single item by ID
-#[inline]
-pub fn get_item_by_id(
-    conn: &Connection,
-    id: i64,
-) -> Result<Option<ClipboardItem>, rusqlite::Error> {
-    let mut stmt = conn.prepare(
-        "SELECT id, type, content, hash, created_at FROM history WHERE id = ?",
-    )?;
-
-    let item = stmt.query_row([id], |row| {
-        Ok(ClipboardItem {
-            id: row.get(0)?,
-            item_type: row.get(1)?,
-            content: row.get(2)?,
-            hash: row.get(3)?,
-            created_at: row.get(4)?,
-        })
-    });
-
-    match item {
-        Ok(i) => Ok(Some(i)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(e),
-    }
-}
-
 /// Delete an item by ID
 #[inline]
 pub fn delete_item(conn: &Connection, id: i64) -> Result<(), rusqlite::Error> {

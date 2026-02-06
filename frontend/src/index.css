@@ -128,3 +128,46 @@ li {
 .fade-in {
   animation: fadeIn 0.2s ease-out;
 }
+
+/* Resize handle - bottom right corner */
+.resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  cursor: se-resize;
+  -webkit-app-region: no-drag;
+  z-index: 10;
+}
+
+/* Resize handle visual indicator */
+.resize-handle::before {
+  content: '';
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+  border-bottom-right-radius: 4px;
+}
+
+.resize-handle:hover::before {
+  border-right-color: rgba(255, 255, 255, 0.6);
+  border-bottom-color: rgba(255, 255, 255, 0.6);
+}
+
+/* Entire window draggable */
+.window-wrapper {
+  -webkit-app-region: drag;
+}
+
+/* Interactive elements not draggable */
+.window-wrapper button,
+.window-wrapper input,
+.window-wrapper .no-drag,
+.window-wrapper .resize-handle {
+  -webkit-app-region: no-drag;
+}

@@ -4,10 +4,7 @@
 //! all platforms (macOS, Linux, Windows). All clipboard access goes through
 //! this module.
 
-use std::path::PathBuf;
-
 use crate::logger;
-use crate::APP_NAME;
 
 pub use arboard::Clipboard;
 
@@ -101,14 +98,4 @@ pub fn set_clipboard_image(
     };
 
     clipboard.set_image(image).map_err(|e| e.to_string())
-}
-
-/// Get the images directory path
-#[inline]
-fn get_images_dir() -> PathBuf {
-    let data_dir = dirs::data_dir()
-        .unwrap_or(PathBuf::from("."))
-        .join(APP_NAME)
-        .join("images");
-    data_dir
 }

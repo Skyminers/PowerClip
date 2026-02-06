@@ -16,12 +16,16 @@
         "title": "PowerClip",
         "width": 450,
         "height": 400,
-        "resizable": false,
+        "resizable": true,
         "decorations": false,
         "transparent": true,
         "shadow": false,
         "alwaysOnTop": true,
-        "skipTaskbar": true
+        "skipTaskbar": true,
+        "minWidth": 300,
+        "minHeight": 200,
+        "maxWidth": 800,
+        "maxHeight": 600
       }
     ],
     "security": {

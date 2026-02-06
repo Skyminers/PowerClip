@@ -74,10 +74,66 @@ function getPreview(content: string): string {
 }
 
 // ============== Components ==============
+// Resize handle component
+function ResizeHandle() {
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const startX = e.clientX
+    const startY = e.clientY
+    const startWidth = window.outerWidth
+    const startHeight = window.outerHeight
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const newWidth = startWidth + (moveEvent.clientX - startX)
+      const newHeight = startHeight + (moveEvent.clientY - startY)
+
+      // Clamp to min/max dimensions
+      const minWidth = 300
+      const maxWidth = 800
+      const minHeight = 200
+      const maxHeight = 600
+
+      const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth))
+      const clampedHeight = Math.max(minHeight, Math.min(maxHeight, newHeight))
+
+      window.resizeTo(clampedWidth, clampedHeight)
+    }
+
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+      // Save window state after resize
+      invoke('save_window_state').catch(console.error)
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }
+
+  return (
+    <div
+      className="resize-handle"
+      onMouseDown={handleMouseDown}
+      title="拖拽调整大小"
+    />
+  )
+}
+
+// Window drag handler - entire window is draggable
 function WindowDragHandler({ children }: { children: React.ReactNode }) {
   const handleDragStart = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.closest('button')) {
+    // Don't drag on interactive elements or resize handle
+    if (
+      target.closest('.resize-handle') ||
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'BUTTON' ||
+      target.closest('button') ||
+      target.closest('input')
+    ) {
       return
     }
     invoke('drag_window').catch(console.error)
@@ -85,7 +141,7 @@ function WindowDragHandler({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="drag-region flex items-center gap-3 px-4 py-3"
+      className="flex items-center gap-3 px-4 py-3"
       style={{ backgroundColor: colors.bgSecondary }}
       onMouseDown={handleDragStart}
     >
@@ -384,9 +440,36 @@ function App() {
     }
   }, [])
 
-  // Initialize data
+  // Initialize data and set default window position if needed
   useEffect(() => {
     fetchHistory()
+
+    // Set default window position on first load (centered, slightly above center)
+    const initWindowPosition = async () => {
+      try {
+        const state = await invoke<{ x: number; y: number; width: number; height: number }>('get_window_state')
+        // If window is at default position (0,0) or very close to it, move to screen center
+        if (state.x <= 50 && state.y <= 50) {
+          const screenWidth = window.screen.width
+          const screenHeight = window.screen.height
+          const windowWidth = state.width || 450
+          const windowHeight = state.height || 400
+
+          // Center horizontally, slightly above center vertically (at 1/3 from top)
+          const newX = Math.floor((screenWidth - windowWidth) / 2)
+          const newY = Math.floor((screenHeight - windowHeight) / 3)
+
+          // Move window to calculated position
+          await invoke('move_window', { x: newX, y: newY })
+          logger.info('App', `Window positioned at (${newX}, ${newY})`)
+        }
+      } catch (e) {
+        logger.error('App', `Failed to set window position: ${e}`)
+      }
+    }
+
+    initWindowPosition()
+
     const interval = setInterval(fetchHistory, REFRESH_INTERVAL_MS)
     return () => clearInterval(interval)
   }, [fetchHistory])
@@ -501,7 +584,7 @@ function App() {
   }, [handleNavigation])
 
   return (
-    <div className="window-wrapper w-full h-full flex flex-col text-white">
+    <div className="window-wrapper w-full h-full flex flex-col text-white relative">
       <WindowDragHandler>
         <SearchBar
           value={searchQuery}
@@ -540,6 +623,9 @@ function App() {
         hasSearchQuery={searchQuery.length > 0}
         isDarwin={isDarwin}
       />
+
+      {/* Resize handle */}
+      <ResizeHandle />
     </div>
   )
 }
