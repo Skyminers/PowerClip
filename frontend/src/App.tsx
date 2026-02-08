@@ -247,7 +247,7 @@ function ClipboardListItem({
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {!isDarwin && (
+          {index < 9 && (
             <span
               className="text-xs px-1.5 py-0.5 rounded"
               style={{
@@ -255,7 +255,7 @@ function ClipboardListItem({
                 color: isSelected ? colors.text : colors.textMuted
               }}
             >
-              {index + 1}
+              {isDarwin ? '⌘' : 'Ctrl'}{index + 1}
             </span>
           )}
           <span className="text-xs" style={{ color: colors.textMuted }}>
@@ -263,25 +263,6 @@ function ClipboardListItem({
           </span>
         </div>
       </div>
-
-      {isSelected && (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          <span
-            className="text-xs px-2 py-0.5 rounded"
-            style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: colors.text }}
-          >
-            Enter
-          </span>
-          {isDarwin && (
-            <span
-              className="text-xs px-2 py-0.5 rounded"
-              style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: colors.text }}
-            >
-              {isDarwin ? '⌘' : 'Ctrl'}{index + 1}
-            </span>
-          )}
-        </div>
-      )}
     </li>
   )
 }
