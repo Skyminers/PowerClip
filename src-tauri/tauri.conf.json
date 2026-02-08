@@ -2,11 +2,11 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "PowerClip",
   "version": "0.1.0",
-  "identifier": "com.powerclip.app",
+  "identifier": "com.powerclip",
   "build": {
-    "beforeDevCommand": "cd /Users/sky_miner/Documents/Project/PowerClip/frontend && bun dev",
+    "beforeDevCommand": "cd frontend && bun dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "cd /Users/sky_miner/Documents/Project/PowerClip/frontend && bun run build.ts"
+    "beforeBuildCommand": "cd frontend && bun run build.ts"
   },
   "app": {
     "withGlobalTauri": true,
