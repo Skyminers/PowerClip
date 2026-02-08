@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, forwardRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { ClipboardItem } from './types'
 import {
@@ -139,7 +139,7 @@ function WindowDragHandler({ children }: { children: React.ReactNode }) {
   )
 }
 
-function SearchBar({
+const SearchBar = forwardRef(function SearchBar({
   value,
   onChange,
   onKeyDown
@@ -147,13 +147,14 @@ function SearchBar({
   value: string
   onChange: (value: string) => void
   onKeyDown: (e: React.KeyboardEvent) => void
-}) {
+}, ref: React.ForwardedRef<HTMLInputElement>) {
   return (
     <>
       <svg className="w-4 h-4 flex-shrink-0" style={{ color: colors.textMuted }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
       <input
+        ref={ref}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -175,7 +176,7 @@ function SearchBar({
       )}
     </>
   )
-}
+})
 
 function ClipboardListItem({
   item,
@@ -444,18 +445,13 @@ function App() {
     return () => clearInterval(interval)
   }, [fetchHistory])
 
-  // Auto-select first item when list changes (for initial load)
-  const hasLoadedRef = useRef(false)
+  // Auto-focus search input when window opens
   useEffect(() => {
-    if (filteredItems.length > 0 && !hasLoadedRef.current) {
-      hasLoadedRef.current = true
-      setSelectedId(filteredItems[0].id)
-      // Focus search input after a short delay
-      setTimeout(() => {
-        inputRef.current?.focus()
-      }, 100)
-    }
-  }, [filteredItems])
+    // Focus search input immediately when component mounts
+    setTimeout(() => {
+      inputRef.current?.focus()
+    }, 50)
+  }, [])
 
   // Auto-scroll to selected item
   useEffect(() => {
@@ -563,6 +559,7 @@ function App() {
     <div className="window-wrapper w-full h-full flex flex-col text-white relative">
       <WindowDragHandler>
         <SearchBar
+          ref={inputRef}
           value={searchQuery}
           onChange={setSearchQuery}
           onKeyDown={handleInputKeyDown}
