@@ -1,6 +1,6 @@
 //! Window module - Window management utilities
 //!
-//! Provides window operations including toggle, drag, resize, and transparency.
+//! Provides window operations including toggle, drag, and transparency.
 
 use crate::logger;
 use crate::window_config::WindowConfig;
@@ -50,15 +50,6 @@ impl WindowManager {
             logger::error("Window", &format!("Failed to start dragging: {}", e));
             e.to_string()
         })?;
-        Ok(())
-    }
-
-    /// Resize the window to specified dimensions
-    #[inline]
-    pub fn resize(window: &tauri::WebviewWindow, width: u32, height: u32) -> Result<(), String> {
-        let size = tauri::Size::Physical(tauri::PhysicalSize::new(width, height));
-        window.set_size(size).map_err(|e| e.to_string())?;
-        logger::debug("Window", &format!("Window resized to {}x{}", width, height));
         Ok(())
     }
 }

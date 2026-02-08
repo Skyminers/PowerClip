@@ -9,16 +9,6 @@ use std::sync::OnceLock;
 /// Application name
 pub const APP_NAME: &str = "PowerClip";
 
-/// Default window dimensions
-pub const DEFAULT_WINDOW_WIDTH: u32 = 450;
-pub const DEFAULT_WINDOW_HEIGHT: u32 = 400;
-
-/// Window constraints
-pub const MIN_WINDOW_WIDTH: u32 = 300;
-pub const MIN_WINDOW_HEIGHT: u32 = 200;
-pub const MAX_WINDOW_WIDTH: u32 = 800;
-pub const MAX_WINDOW_HEIGHT: u32 = 600;
-
 /// Database settings
 pub const HISTORY_LIMIT: i64 = 1000;
 pub const CLIPBOARD_POLL_INTERVAL_MS: u64 = 300;
