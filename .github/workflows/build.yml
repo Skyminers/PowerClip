@@ -1,0 +1,117 @@
+name: Build Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14  # Apple Silicon (M1)
+            target: aarch64-apple-darwin
+            ext: dmg
+            upload_name: PowerClip-macOS-arm64
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            ext: msix
+            upload_name: PowerClip-Windows-x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
+          override: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('frontend/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: |
+          bun install --cwd frontend
+
+      - name: Build frontend
+        run: |
+          bun run build --cwd frontend
+
+      - name: Build Tauri app
+        id: tauri-build
+        run: |
+          cd src-tauri
+          cargo tauri build --bundles ${{ matrix.ext }} --target ${{ matrix.target }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use placeholder if secrets not set (will generate self-signed certs)
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY || '' }}
+          TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD || '' }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.upload_name }}
+          path: src-tauri/target/release/bundle/**
+          retention-days: 7
+
+  validate:
+    name: Validate Build Artifacts
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download macOS artifact
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: PowerClip-macOS-arm64
+          path: artifacts/macos
+
+      - name: Download Windows artifact
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: PowerClip-Windows-x64
+          path: artifacts/windows
+
+      - name: Verify macOS artifact
+        run: |
+          echo "=== macOS Artifacts ==="
+          ls -la artifacts/macos/
+          if [ -z "$(ls -A artifacts/macos/)" ]; then
+            echo "❌ No macOS artifacts found!"
+            exit 1
+          fi
+          echo "✅ macOS artifacts found"
+
+      - name: Verify Windows artifact
+        run: |
+          echo "=== Windows Artifacts ==="
+          ls -la artifacts/windows/
+          if [ -z "$(ls -A artifacts/windows/)" ]; then
+            echo "❌ No Windows artifacts found!"
+            exit 1
+          fi
+          echo "✅ Windows artifacts found"
