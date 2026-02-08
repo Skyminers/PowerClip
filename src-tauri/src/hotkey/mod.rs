@@ -55,7 +55,7 @@ pub fn register_hotkey(manager: &GlobalHotKeyManager, window: &tauri::WebviewWin
     GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
         if event.id == hotkey.id() && event.state == HotKeyState::Released {
             logger::info("Hotkey", "Show/hide hotkey triggered");
-            let _ = WindowManager::toggle(&win);
+            let _ = WindowManager::show_and_focus(&win);
         }
     }));
 

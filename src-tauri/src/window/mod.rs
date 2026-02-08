@@ -25,9 +25,21 @@ impl WindowManager {
                 logger::error("Window", &format!("Failed to show window: {}", e));
                 e.to_string()
             })?;
-            window.set_focus().ok();
-            logger::info("Window", "Window shown and focused");
+            logger::info("Window", "Window shown");
         }
+        Ok(())
+    }
+
+    /// Show window and try to focus it
+    #[inline]
+    pub fn show_and_focus(window: &tauri::WebviewWindow) -> Result<(), String> {
+        window.show().map_err(|e| {
+            logger::error("Window", &format!("Failed to show window: {}", e));
+            e.to_string()
+        })?;
+        // Try to focus - on macOS this may fail but we try
+        let _ = window.set_focus();
+        logger::info("Window", "Window shown and focus requested");
         Ok(())
     }
 

@@ -168,6 +168,21 @@ pub async fn toggle_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Show window and try to focus it
+#[tauri::command]
+pub async fn show_and_focus_window(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    if let Some(window) = app.get_webview_window("main") {
+        let is_visible = window.is_visible().map_err(|e| e.to_string())?;
+        if !is_visible {
+            window.show().map_err(|e| e.to_string())?;
+            // Try to focus - on macOS this might fail but we try
+            let _ = window.set_focus();
+        }
+    }
+    Ok(())
+}
+
 /// Start window dragging
 #[tauri::command]
 pub async fn drag_window(app: tauri::AppHandle) -> Result<(), String> {

@@ -182,6 +182,7 @@ async fn main() {
             commands::get_history,
             commands::copy_to_clipboard,
             commands::toggle_window,
+            commands::show_and_focus_window,
             commands::drag_window,
             commands::get_data_dir,
             commands::get_image_full_path,

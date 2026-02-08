@@ -444,12 +444,18 @@ function App() {
     return () => clearInterval(interval)
   }, [fetchHistory])
 
-  // Auto-select first item when list changes
+  // Auto-select first item when list changes (for initial load)
+  const hasLoadedRef = useRef(false)
   useEffect(() => {
-    if (filteredItems.length > 0 && selectedId === null) {
+    if (filteredItems.length > 0 && !hasLoadedRef.current) {
+      hasLoadedRef.current = true
       setSelectedId(filteredItems[0].id)
+      // Focus search input after a short delay
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 100)
     }
-  }, [filteredItems, selectedId])
+  }, [filteredItems])
 
   // Auto-scroll to selected item
   useEffect(() => {
