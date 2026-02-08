@@ -38,6 +38,18 @@ jobs:
           target: ${{ matrix.target }}
           override: true
 
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
@@ -58,6 +70,10 @@ jobs:
       - name: Build frontend
         run: |
           cd frontend && bun run build
+
+      - name: Install Tauri CLI
+        run: |
+          cargo install tauri-cli
 
       - name: Build Tauri app
         id: tauri-build
