@@ -36,7 +36,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           target: ${{ matrix.target }}
-          override: true
 
       - name: Cache cargo dependencies
         uses: actions/cache@v4
@@ -79,6 +78,25 @@ jobs:
         run: |
           cargo tauri icon src-tauri/icons/icon.png
 
+      - name: Install ImageMagick for Windows
+        if: matrix.os == 'windows-2022'
+        uses: chocolatey/chocolatey-action@v1
+        with:
+          args: install imagemagick --params '/InstallDir:C:\ImageMagick'
+
+      - name: Convert PNG to ICO for Windows
+        if: matrix.os == 'windows-2022'
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\ImageMagick;" + $env:PATH
+          magick convert "$PWD/src-tauri/icons/icon.png" -define icon:auto-resize=256,128,64,48,32,16 "$PWD/src-tauri/icons/icon.ico"
+          if (Test-Path "$PWD/src-tauri/icons/icon.ico") {
+            echo "✅ .ico icon created"
+          } else {
+            echo "❌ .ico icon creation failed"
+            exit 1
+          }
+
       - name: Build Tauri app
         id: tauri-build
         run: |
@@ -94,7 +112,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.upload_name }}
-          path: src-tauri/target/release/bundle/**
+          path: src-tauri/target/release/bundle/
           retention-days: 7
 
   validate:

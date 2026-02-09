@@ -11,7 +11,7 @@ pub const APP_NAME: &str = "PowerClip";
 
 /// Database settings
 pub const HISTORY_LIMIT: i64 = 1000;
-pub const CLIPBOARD_POLL_INTERVAL_MS: u64 = 300;
+pub const CLIPBOARD_POLL_INTERVAL_MS: u64 = 100;
 
 /// Cache the data directory path
 static DATA_DIR: OnceLock<PathBuf> = OnceLock::new();

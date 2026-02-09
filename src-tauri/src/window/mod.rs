@@ -172,6 +172,7 @@ pub fn setup_window_transparency(app: &tauri::App) -> Result<(), String> {
     let Some(window) = app.get_webview_window("main") else {
         return Ok(());
     };
+    let _ = &window; // Suppress unused variable warning on non-macOS
 
     #[cfg(target_os = "macos")]
     {

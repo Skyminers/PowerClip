@@ -311,7 +311,10 @@ pub async fn check_clipboard(
             // Only save if new
             match exists {
                 Ok(Some(_)) => {
-                    logger::debug("Commands", &format!("Image already exists: hash={}", &hash[..8]));
+                    // Image exists, update timestamp to make it the latest
+                    let relative_path = format!("images/{}.png", hash);
+                    db::save_item(&conn, "image", &relative_path, &hash).map_err(|e| e.to_string())?;
+                    logger::debug("Commands", &format!("Image already exists, timestamp updated: hash={}", &hash[..8]));
                 }
                 _ => {
                     // Save image to file
