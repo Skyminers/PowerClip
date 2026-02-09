@@ -25,7 +25,7 @@ jobs:
             upload_name: PowerClip-macOS-arm64
           - os: windows-2022
             target: x86_64-pc-windows-msvc
-            ext: msix
+            ext: msi
             upload_name: PowerClip-Windows-x64
 
     steps:
