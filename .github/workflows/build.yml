@@ -66,10 +66,6 @@ jobs:
         run: |
           cd frontend && bun install
 
-      - name: Build frontend
-        run: |
-          cd frontend && bun run build
-
       - name: Install Tauri CLI
         run: |
           cargo install tauri-cli
@@ -79,13 +75,10 @@ jobs:
           cargo tauri icon src-tauri/icons/icon.png
 
       - name: Build Tauri app
-        id: tauri-build
         run: |
-          cd src-tauri
           cargo tauri build --bundles ${{ matrix.ext }} --target ${{ matrix.target }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Use placeholder if secrets not set (will generate self-signed certs)
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY || '' }}
           TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD || '' }}
 

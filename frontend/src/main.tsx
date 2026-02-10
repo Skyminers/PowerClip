@@ -99,7 +99,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 // Keyboard shortcut listener
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    window.close()
+    e.preventDefault()
+    // Hide window and release focus
+    invoke('hide_window').catch(() => {})
   }
 })
 

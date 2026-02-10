@@ -364,9 +364,9 @@ function App() {
       await invoke('copy_to_clipboard', { item })
       logger.info('App', 'Item copied to system clipboard via Rust')
 
-      // Toggle window after copy
-      await invoke('toggle_window')
-      logger.info('App', 'Window toggled after copy')
+      // Hide window and release focus after copy
+      await invoke('hide_window')
+      logger.info('App', 'Window hidden after copy')
     } catch (error) {
       logger.error('App', `Failed to copy item: ${error}`)
       console.error('Failed to copy:', error)
@@ -486,7 +486,7 @@ function App() {
         break
       case 'close':
         setSearchQuery('')
-        invoke('toggle_window')
+        invoke('hide_window').catch(() => {})
         break
       case 'focusSearch':
         inputRef.current?.focus()

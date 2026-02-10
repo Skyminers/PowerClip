@@ -15,6 +15,8 @@ impl WindowManager {
         let is_visible = window.is_visible().map_err(|e| e.to_string())?;
 
         if is_visible {
+            // Release focus to other app before hiding
+            let _ = window.set_focus();
             window.hide().map_err(|e| {
                 logger::error("Window", &format!("Failed to hide window: {}", e));
                 e.to_string()
@@ -26,6 +28,21 @@ impl WindowManager {
                 e.to_string()
             })?;
             logger::info("Window", "Window shown");
+        }
+        Ok(())
+    }
+
+    /// Hide window and release focus
+    #[inline]
+    pub fn hide(window: &tauri::WebviewWindow) -> Result<(), String> {
+        if window.is_visible().map_err(|e| e.to_string())? {
+            // Release focus to other app before hiding
+            let _ = window.set_focus();
+            window.hide().map_err(|e| {
+                logger::error("Window", &format!("Failed to hide window: {}", e));
+                e.to_string()
+            })?;
+            logger::info("Window", "Window hidden");
         }
         Ok(())
     }

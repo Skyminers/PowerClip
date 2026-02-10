@@ -5,8 +5,7 @@
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::sync::{Mutex, OnceLock};
-
-use chrono::Local;
+use std::time::SystemTime;
 
 /// Log level enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,8 +86,11 @@ impl Logger {
             return;
         }
 
-        // Format log line
-        let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+        // Format log line - use SystemTime to avoid timezone issues during shutdown
+        let timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| format!("{:.3}", d.as_secs_f64()))
+            .unwrap_or_else(|_| "0.000".to_string());
         let log_line = format!(
             "[{}] [{}] [{}] {}\n",
             timestamp,

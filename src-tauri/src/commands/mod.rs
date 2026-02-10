@@ -168,6 +168,16 @@ pub async fn toggle_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Hide window and release focus
+#[tauri::command]
+pub async fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    if let Some(window) = app.get_webview_window("main") {
+        crate::window::WindowManager::hide(&window)?;
+    }
+    Ok(())
+}
+
 /// Show window and try to focus it
 #[tauri::command]
 pub async fn show_and_focus_window(app: tauri::AppHandle) -> Result<(), String> {

@@ -4,9 +4,10 @@
   "version": "0.1.0",
   "identifier": "com.powerclip",
   "build": {
-    "beforeDevCommand": "cd frontend && bun dev",
-    "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "cd frontend && bun run build.ts"
+      "beforeDevCommand": "cd frontend && bun dev",
+      "devUrl": "http://localhost:5173",
+      "beforeBuildCommand": "cd ../frontend && bun run build.ts",
+      "frontendDist": "../src-tauri/dist"
   },
   "app": {
     "withGlobalTauri": true,
