@@ -118,6 +118,15 @@ pub async fn move_window(window: tauri::WebviewWindow, x: i32, y: i32) -> Result
     Ok(())
 }
 
+/// Resize window to specified size
+#[tauri::command]
+pub async fn resize_window(window: tauri::WebviewWindow, width: u32, height: u32) -> Result<(), String> {
+    let size = tauri::Size::Physical(tauri::PhysicalSize::new(width, height));
+    window.set_size(size).map_err(|e| e.to_string())?;
+    logger::debug("Window", &format!("Window resized to {}x{}", width, height));
+    Ok(())
+}
+
 // ============================================================================
 // Window Setup Functions
 // ============================================================================

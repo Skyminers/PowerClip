@@ -37,7 +37,7 @@ use tauri::{
     PhysicalPosition,
 };
 
-use crate::window::{setup_window_behavior, setup_window_transparency, save_window_state, get_window_state, move_window};
+use crate::window::{setup_window_behavior, setup_window_transparency, save_window_state, get_window_state, move_window, resize_window};
 use crate::config::{data_dir, APP_NAME};
 
 /// Initialize system tray
@@ -194,6 +194,7 @@ async fn main() {
             save_window_state,
             get_window_state,
             move_window,
+            resize_window,
         ])
         .run(tauri::generate_context!())
         .expect("Fatal error while running tauri application");

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, forwardRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { ClipboardItem } from './types'
 import {
   HISTORY_LIMIT,
@@ -65,40 +66,47 @@ function getPreview(content: string): string {
 // ============== Components ==============
 // Resize handle component
 function ResizeHandle() {
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
 
-    const startX = e.clientX
-    const startY = e.clientY
-    const startWidth = window.outerWidth
-    const startHeight = window.outerHeight
+    try {
+      // Get current window state
+      const currentState = await invoke<{ width: number; height: number; x: number; y: number }>('get_window_state')
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const newWidth = startWidth + (moveEvent.clientX - startX)
-      const newHeight = startHeight + (moveEvent.clientY - startY)
+      const startX = e.clientX
+      const startY = e.clientY
+      const startWidth = currentState.width
+      const startHeight = currentState.height
 
-      // Clamp to min/max dimensions
-      const minWidth = 300
-      const maxWidth = 800
-      const minHeight = 200
-      const maxHeight = 600
+      const onMouseMove = async (moveEvent: MouseEvent) => {
+        const newWidth = startWidth + (moveEvent.clientX - startX)
+        const newHeight = startHeight + (moveEvent.clientY - startY)
 
-      const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth))
-      const clampedHeight = Math.max(minHeight, Math.min(maxHeight, newHeight))
+        // Clamp to min/max dimensions
+        const minWidth = 300
+        const maxWidth = 800
+        const minHeight = 200
+        const maxHeight = 600
 
-      window.resizeTo(clampedWidth, clampedHeight)
+        const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth))
+        const clampedHeight = Math.max(minHeight, Math.min(maxHeight, newHeight))
+
+        await invoke('resize_window', { width: clampedWidth, height: clampedHeight })
+      }
+
+      const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+        // Save window state after resize
+        invoke('save_window_state').catch(console.error)
+      }
+
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    } catch (error) {
+      console.error('Failed to start resize:', error)
     }
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-      // Save window state after resize
-      invoke('save_window_state').catch(console.error)
-    }
-
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
   }
 
   return (
@@ -112,7 +120,7 @@ function ResizeHandle() {
 
 // Window drag handler - entire window is draggable
 function WindowDragHandler({ children }: { children: React.ReactNode }) {
-  const handleDragStart = (e: React.MouseEvent) => {
+  const handleDragStart = async (e: React.MouseEvent) => {
     const target = e.target as HTMLElement
     // Don't drag on interactive elements or resize handle
     if (
@@ -125,7 +133,12 @@ function WindowDragHandler({ children }: { children: React.ReactNode }) {
     ) {
       return
     }
-    invoke('drag_window').catch(console.error)
+    try {
+      const win = getCurrentWindow()
+      await win.startDragging()
+    } catch (error) {
+      console.error('Failed to start dragging:', error)
+    }
   }
 
   return (
@@ -133,6 +146,7 @@ function WindowDragHandler({ children }: { children: React.ReactNode }) {
       className="flex items-center gap-3 px-4 py-3"
       style={{ backgroundColor: colors.bgSecondary }}
       onMouseDown={handleDragStart}
+      data-tauri-drag-region
     >
       {children}
     </div>
