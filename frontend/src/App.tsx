@@ -467,6 +467,17 @@ function App() {
 
       // Auto-select the new item
       setSelectedId(newItem.id)
+
+      // Load image if new item is an image
+      if (newItem.item_type === 'image') {
+        invoke<string>('get_image_asset_url', { relativePath: newItem.content })
+          .then(dataUrl => {
+            setImageCache(prev => ({ ...prev, [newItem.content]: dataUrl }))
+          })
+          .catch(err => {
+            logger.error('App', `Failed to load new image: ${err}`)
+          })
+      }
     }
 
     window.addEventListener('powerclip:new-item', handleNewItem)
