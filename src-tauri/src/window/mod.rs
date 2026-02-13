@@ -4,7 +4,6 @@
 
 use crate::logger;
 use crate::window_config::WindowConfig;
-use tauri::Emitter;
 
 /// Window management utilities
 pub struct WindowManager;

@@ -460,7 +460,6 @@ function App() {
     const handleNewItem = (event: Event) => {
       const customEvent = event as CustomEvent<ClipboardItem>
       const newItem = customEvent.detail
-      console.info('[PowerClip] New item received:', newItem.id)
 
       // Add new item to the top of the list
       setItems(prev => [newItem, ...prev.filter(item => item.id !== newItem.id)])
@@ -488,8 +487,6 @@ function App() {
   // Listen for window shown event from Rust backend
   useEffect(() => {
     const handleWindowShown = async () => {
-      console.info('[PowerClip] Window shown event received!')
-
       try {
         // 1. Refresh history to get latest data
         const result = await invoke<ClipboardItem[]>('get_history', { limit: HISTORY_LIMIT })

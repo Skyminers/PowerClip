@@ -295,10 +295,7 @@ pub async fn check_clipboard(
 ) -> Result<(), String> {
     use tauri::{Emitter, Manager};
 
-    logger::debug("Commands", "check_clipboard called");
-
     let Some(content) = clipboard::get_clipboard_content() else {
-        logger::debug("Commands", "No clipboard content");
         return Ok(());
     };
 
@@ -310,11 +307,9 @@ pub async fn check_clipboard(
             let conn = state.conn.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
 
             if let Some(new_item) = db::save_item(&conn, "text", &text, &hash).map_err(|e| e.to_string())? {
-                logger::debug("Commands", &format!("Text saved: {} chars, hash={}", text.len(), &hash[..8]));
-                // Emit event to frontend with new item - use emit_to with window label
-                use tauri::Emitter;
-                let result = app.emit_to("main", "powerclip:new-item", &new_item);
-                logger::info("Commands", &format!("Emitted new-item event: id={}, result={:?}", new_item.id, result));
+                logger::debug("Commands", &format!("Text saved: {} chars", text.len()));
+                // Emit event to frontend with new item
+                app.emit_to("main", "powerclip:new-item", &new_item).ok();
             }
         }
         ClipboardContent::Image(image) => {
@@ -336,11 +331,8 @@ pub async fn check_clipboard(
                     // Image exists, update timestamp to make it the latest
                     let relative_path = format!("images/{}.png", hash);
                     if let Some(new_item) = db::save_item(&conn, "image", &relative_path, &hash).map_err(|e| e.to_string())? {
-                        logger::debug("Commands", &format!("Image already exists, timestamp updated: hash={}", &hash[..8]));
                         // Emit event to frontend with new item
-                        use tauri::Emitter;
-                        let result = app.emit_to("main", "powerclip:new-item", &new_item);
-                        logger::info("Commands", &format!("Emitted new-item event: id={}, result={:?}", new_item.id, result));
+                        app.emit_to("main", "powerclip:new-item", &new_item).ok();
                     }
                 }
                 _ => {
@@ -363,11 +355,8 @@ pub async fn check_clipboard(
 
                     let relative_path = format!("images/{}.png", hash);
                     if let Some(new_item) = db::save_item(&conn, "image", &relative_path, &hash).map_err(|e| e.to_string())? {
-                        logger::debug("Commands", &format!("Image saved: {}x{}, hash={}", image.width, image.height, &hash[..8]));
                         // Emit event to frontend with new item
-                        use tauri::Emitter;
-                        let result = app.emit_to("main", "powerclip:new-item", &new_item);
-                        logger::info("Commands", &format!("Emitted new-item event: id={}, result={:?}", new_item.id, result));
+                        app.emit_to("main", "powerclip:new-item", &new_item).ok();
                     }
                 }
             }
