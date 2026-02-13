@@ -6,7 +6,6 @@ import {
   HISTORY_LIMIT,
   PREVIEW_MAX_LENGTH,
   CONTENT_TRUNCATE_LENGTH,
-  REFRESH_INTERVAL_MS,
 } from './constants'
 import { theme } from './theme'
 
@@ -357,6 +356,7 @@ function App() {
   const [imageCache, setImageCache] = useState<ImageCache>({})
   const listRef = useRef<HTMLUListElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const itemsRef = useRef<ClipboardItem[]>([])
   const isDarwin = navigator.platform.toLowerCase().includes('mac')
 
   // Derived state
@@ -395,6 +395,7 @@ function App() {
       logger.info('App', `Retrieved ${result.length} items from history`)
 
       setItems(result)
+      itemsRef.current = result
 
       // Load image data URLs in parallel
       const imageItems = result.filter(
@@ -455,9 +456,26 @@ function App() {
 
     initWindowPosition()
 
-    const interval = setInterval(fetchHistory, REFRESH_INTERVAL_MS)
-    return () => clearInterval(interval)
-  }, [fetchHistory])
+    // Listen for new clipboard items from backend (via custom DOM event)
+    const handleNewItem = (event: Event) => {
+      const customEvent = event as CustomEvent<ClipboardItem>
+      const newItem = customEvent.detail
+      console.info('[PowerClip] New item received:', newItem.id)
+
+      // Add new item to the top of the list
+      setItems(prev => [newItem, ...prev.filter(item => item.id !== newItem.id)])
+      itemsRef.current = [newItem, ...itemsRef.current.filter(item => item.id !== newItem.id)]
+
+      // Auto-select the new item
+      setSelectedId(newItem.id)
+    }
+
+    window.addEventListener('powerclip:new-item', handleNewItem)
+
+    return () => {
+      window.removeEventListener('powerclip:new-item', handleNewItem)
+    }
+  }, [])
 
   // Auto-focus search input when window opens
   useEffect(() => {
@@ -465,6 +483,45 @@ function App() {
     setTimeout(() => {
       inputRef.current?.focus()
     }, 50)
+  }, [])
+
+  // Listen for window shown event from Rust backend
+  useEffect(() => {
+    const handleWindowShown = async () => {
+      console.info('[PowerClip] Window shown event received!')
+
+      try {
+        // 1. Refresh history to get latest data
+        const result = await invoke<ClipboardItem[]>('get_history', { limit: HISTORY_LIMIT })
+
+        // Update state and ref
+        setItems(result)
+        itemsRef.current = result
+
+        // 2. Force scroll to top immediately
+        if (listRef.current) {
+          listRef.current.scrollTop = 0
+        }
+
+        // 3. Select the first (latest) item immediately
+        if (result.length > 0) {
+          setSelectedId(result[0].id)
+        }
+
+        // 4. Focus search input
+        setTimeout(() => {
+          inputRef.current?.focus()
+        }, 50)
+      } catch (error) {
+        console.error('[PowerClip] Error in window shown handler:', error)
+      }
+    }
+
+    window.addEventListener('powerclip:window-shown', handleWindowShown)
+
+    return () => {
+      window.removeEventListener('powerclip:window-shown', handleWindowShown)
+    }
   }, [])
 
   // Auto-scroll to selected item

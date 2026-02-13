@@ -31,6 +31,7 @@ use tauri::{
     tray::TrayIconBuilder,
     menu::MenuBuilder,
     Manager,
+    Emitter,
     Size,
     PhysicalSize,
     Position,
@@ -70,6 +71,8 @@ fn setup_tray(app: &tauri::App) -> Result<(), String> {
                     if let Some(window) = app.get_webview_window("main") {
                         let _ = window.show();
                         let _ = window.set_focus();
+                        use tauri::Emitter;
+                        let _ = app.emit_to("main", "powerclip:window-shown", ());
                         crate::logger::info("Tray", "Show window menu item clicked");
                     }
                 }
@@ -85,10 +88,14 @@ fn setup_tray(app: &tauri::App) -> Result<(), String> {
                 button: tauri::tray::MouseButton::Left,
                 ..
             } = event {
+                crate::logger::info("Tray", "Left click on tray icon");
                 if let Some(window) = tray.app_handle().get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
-                    crate::logger::info("Tray", "Left click: window shown");
+                    use tauri::Emitter;
+                    let result = tray.app_handle().emit_to("main", "powerclip:window-shown", ());
+                    crate::logger::info("Tray", &format!("Emit result: {:?}", result));
+                    crate::logger::info("Tray", "Left click: window shown and event emitted");
                 }
             }
         })
@@ -129,6 +136,7 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
         use tauri::Listener;
         let app_handle = app.handle().clone();
         let _ = app_handle.clone().listen("powerclip:check-clipboard", move |_event| {
+            crate::logger::debug("Main", "Received check-clipboard event");
             // Call check_clipboard command on the main thread
             let app = app_handle.clone();
             tauri::async_runtime::spawn(async move {

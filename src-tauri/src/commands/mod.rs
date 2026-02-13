@@ -181,13 +181,16 @@ pub async fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
 /// Show window and try to focus it
 #[tauri::command]
 pub async fn show_and_focus_window(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::Manager;
+    use tauri::{Manager, Emitter};
     if let Some(window) = app.get_webview_window("main") {
         let is_visible = window.is_visible().map_err(|e| e.to_string())?;
         if !is_visible {
             window.show().map_err(|e| e.to_string())?;
             // Try to focus - on macOS this might fail but we try
             let _ = window.set_focus();
+            // Notify frontend
+            use tauri::Emitter;
+            let _ = app.emit_to("main", "powerclip:window-shown", ());
         }
     }
     Ok(())
@@ -285,13 +288,17 @@ pub async fn clear_history(
 ///
 /// This is the main function called by the clipboard monitor.
 /// It reads the clipboard using arboard and saves new content.
+/// If new content is saved, emits event to frontend.
 #[tauri::command]
 pub async fn check_clipboard(
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    use tauri::Manager;
+    use tauri::{Emitter, Manager};
+
+    logger::debug("Commands", "check_clipboard called");
 
     let Some(content) = clipboard::get_clipboard_content() else {
+        logger::debug("Commands", "No clipboard content");
         return Ok(());
     };
 
@@ -302,8 +309,13 @@ pub async fn check_clipboard(
             let state = app.state::<crate::DatabaseState>();
             let conn = state.conn.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
 
-            db::save_item(&conn, "text", &text, &hash).map_err(|e| e.to_string())?;
-            logger::debug("Commands", &format!("Text saved: {} chars, hash={}", text.len(), &hash[..8]));
+            if let Some(new_item) = db::save_item(&conn, "text", &text, &hash).map_err(|e| e.to_string())? {
+                logger::debug("Commands", &format!("Text saved: {} chars, hash={}", text.len(), &hash[..8]));
+                // Emit event to frontend with new item - use emit_to with window label
+                use tauri::Emitter;
+                let result = app.emit_to("main", "powerclip:new-item", &new_item);
+                logger::info("Commands", &format!("Emitted new-item event: id={}, result={:?}", new_item.id, result));
+            }
         }
         ClipboardContent::Image(image) => {
             // Calculate hash
@@ -323,8 +335,13 @@ pub async fn check_clipboard(
                 Ok(Some(_)) => {
                     // Image exists, update timestamp to make it the latest
                     let relative_path = format!("images/{}.png", hash);
-                    db::save_item(&conn, "image", &relative_path, &hash).map_err(|e| e.to_string())?;
-                    logger::debug("Commands", &format!("Image already exists, timestamp updated: hash={}", &hash[..8]));
+                    if let Some(new_item) = db::save_item(&conn, "image", &relative_path, &hash).map_err(|e| e.to_string())? {
+                        logger::debug("Commands", &format!("Image already exists, timestamp updated: hash={}", &hash[..8]));
+                        // Emit event to frontend with new item
+                        use tauri::Emitter;
+                        let result = app.emit_to("main", "powerclip:new-item", &new_item);
+                        logger::info("Commands", &format!("Emitted new-item event: id={}, result={:?}", new_item.id, result));
+                    }
                 }
                 _ => {
                     // Save image to file
@@ -345,8 +362,13 @@ pub async fn check_clipboard(
                     IMAGE_CACHE.insert(hash.clone(), image_data);
 
                     let relative_path = format!("images/{}.png", hash);
-                    db::save_item(&conn, "image", &relative_path, &hash).map_err(|e| e.to_string())?;
-                    logger::debug("Commands", &format!("Image saved: {}x{}, hash={}", image.width, image.height, &hash[..8]));
+                    if let Some(new_item) = db::save_item(&conn, "image", &relative_path, &hash).map_err(|e| e.to_string())? {
+                        logger::debug("Commands", &format!("Image saved: {}x{}, hash={}", image.width, image.height, &hash[..8]));
+                        // Emit event to frontend with new item
+                        use tauri::Emitter;
+                        let result = app.emit_to("main", "powerclip:new-item", &new_item);
+                        logger::info("Commands", &format!("Emitted new-item event: id={}, result={:?}", new_item.id, result));
+                    }
                 }
             }
         }

@@ -1,12 +1,13 @@
 //! Database module - SQLite operations for clipboard history
 
 use rusqlite::Connection;
+use serde::Serialize;
 
 use crate::config::{db_path, HISTORY_LIMIT};
 use crate::logger;
 
 /// Clipboard history item stored in database
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ClipboardItem {
     pub id: i64,
     pub item_type: String,
@@ -59,13 +60,14 @@ pub fn calculate_hash(content: &[u8]) -> String {
 }
 
 /// Insert or update a clipboard item
+/// Returns Some(ClipboardItem) if a new item was inserted, None if just updated timestamp
 #[inline]
 pub fn save_item(
     conn: &Connection,
     item_type: &str,
     content: &str,
     hash: &str,
-) -> Result<(), rusqlite::Error> {
+) -> Result<Option<ClipboardItem>, rusqlite::Error> {
     let created_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     // Check if already exists
@@ -83,6 +85,8 @@ pub fn save_item(
                 [&created_at, &id.to_string()],
             )?;
             logger::debug("Database", &format!("Updated existing item id={}", id));
+            // Return None because it wasn't a new item
+            Ok(None)
         }
         _ => {
             // Insert new
@@ -90,14 +94,25 @@ pub fn save_item(
                 "INSERT INTO history (type, content, hash, created_at) VALUES (?, ?, ?, ?)",
                 (item_type, content, hash, &created_at),
             )?;
+
+            // Get the inserted id
+            let id = conn.last_insert_rowid();
+
             logger::debug("Database", &format!("Inserted new item hash={}", &hash[..8]));
+
+            // Cleanup old records
+            cleanup_old_records(conn)?;
+
+            // Return the new item
+            Ok(Some(ClipboardItem {
+                id,
+                item_type: item_type.to_string(),
+                content: content.to_string(),
+                hash: hash.to_string(),
+                created_at,
+            }))
         }
     }
-
-    // Cleanup old records
-    cleanup_old_records(conn)?;
-
-    Ok(())
 }
 
 /// Remove excess records beyond HISTORY_LIMIT

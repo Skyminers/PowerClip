@@ -4,6 +4,7 @@
 
 use crate::logger;
 use crate::window_config::WindowConfig;
+use tauri::Emitter;
 
 /// Window management utilities
 pub struct WindowManager;
@@ -57,6 +58,23 @@ impl WindowManager {
         // Try to focus - on macOS this may fail but we try
         let _ = window.set_focus();
         logger::info("Window", "Window shown and focus requested");
+        Ok(())
+    }
+
+    /// Show window, focus it, and notify frontend
+    #[inline]
+    pub fn show_and_notify(app: &tauri::AppHandle, window: &tauri::WebviewWindow) -> Result<(), String> {
+        window.show().map_err(|e| {
+            logger::error("Window", &format!("Failed to show window: {}", e));
+            e.to_string()
+        })?;
+        let _ = window.set_focus();
+
+        // Emit event to frontend
+        use tauri::Emitter;
+        let _ = app.emit_to("main", "powerclip:window-shown", ());
+        logger::info("Window", "Window shown and frontend notified");
+
         Ok(())
     }
 

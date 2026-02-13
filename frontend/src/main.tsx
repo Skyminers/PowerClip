@@ -1,8 +1,33 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import App from './App'
 import './index.css'
+
+// ============== Tauri Event Listener ==============
+// Set up window shown listener at app startup (before React mounts)
+console.info('[PowerClip] Setting up Tauri event listener...')
+listen('powerclip:window-shown', () => {
+  console.info('[PowerClip] Tauri event received!')
+  // Dispatch a native DOM event that React can listen to
+  window.dispatchEvent(new CustomEvent('powerclip:window-shown'))
+}).then(() => {
+  console.info('[PowerClip] Tauri listener ready!')
+}).catch(err => {
+  console.error('[PowerClip] Failed to set up Tauri listener:', err)
+})
+
+// Set up new-item listener at module level (always active)
+listen<any>('powerclip:new-item', (event) => {
+  console.info('[PowerClip] New item event received from backend:', event.payload)
+  // Dispatch a native DOM event that React can listen to
+  window.dispatchEvent(new CustomEvent('powerclip:new-item', { detail: event.payload }))
+}).then(() => {
+  console.info('[PowerClip] New-item listener ready!')
+}).catch(err => {
+  console.error('[PowerClip] Failed to set up new-item listener:', err)
+})
 
 // ============== Logging System ==============
 type LogLevel = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR'

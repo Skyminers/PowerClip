@@ -4,6 +4,7 @@ use global_hotkey::GlobalHotKeyEvent;
 use global_hotkey::GlobalHotKeyManager;
 use global_hotkey::hotkey::{Code, Modifiers, HotKey};
 use global_hotkey::HotKeyState;
+use tauri::Manager;
 
 use crate::logger;
 use crate::window::WindowManager;
@@ -53,9 +54,14 @@ pub fn register_hotkey(manager: &GlobalHotKeyManager, window: &tauri::WebviewWin
     // Set up event handler
     let win = window.clone();
     GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
+        logger::info("Hotkey", &format!("Hotkey event: id={:?}, state={:?}", event.id, event.state));
         if event.id == hotkey.id() && event.state == HotKeyState::Released {
-            logger::info("Hotkey", "Show/hide hotkey triggered");
-            let _ = WindowManager::show_and_focus(&win);
+            logger::info("Hotkey", "Show/hide hotkey triggered - calling show_and_notify");
+            let app_handle = win.app_handle();
+            let result = WindowManager::show_and_notify(&app_handle, &win);
+            if let Err(e) = result {
+                logger::error("Hotkey", &format!("show_and_notify failed: {}", e));
+            }
         }
     }));
 

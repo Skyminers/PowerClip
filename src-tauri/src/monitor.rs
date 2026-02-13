@@ -44,7 +44,10 @@ pub fn start_clipboard_monitor(app: AppHandle) {
 
             // Emit event to trigger clipboard check
             // This will be handled by the event listener in setup
-            let _ = app.emit("powerclip:check-clipboard", ());
+            let result = app.emit("powerclip:check-clipboard", ());
+            if let Err(e) = result {
+                logger::warning("Monitor", &format!("Failed to emit check-clipboard: {}", e));
+            }
         }
 
         logger::info("Monitor", "Clipboard monitor stopped");

@@ -12,6 +12,9 @@
   "app": {
     "withGlobalTauri": true,
     "macOSPrivateApi": true,
+    "security": {
+      "dangerousDisableAssetCspModification": false
+    },
     "windows": [
       {
         "title": "PowerClip",
