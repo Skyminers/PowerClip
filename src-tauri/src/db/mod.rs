@@ -163,3 +163,43 @@ pub fn clear_history(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute("DELETE FROM history", ())?;
     Ok(())
 }
+
+/// Clean up old items beyond the limit
+/// Returns the number of items deleted
+#[inline]
+pub fn cleanup_old_items(conn: &Connection, max_items: i64) -> Result<i64, rusqlite::Error> {
+    // Get total count
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM history", [], |row| row.get(0))?;
+
+    if count <= max_items {
+        return Ok(0);
+    }
+
+    let to_delete = count - max_items;
+
+    // Get IDs of oldest items to delete
+    let mut stmt = conn.prepare("SELECT id, item_type, content FROM history ORDER BY created_at ASC LIMIT ?")?;
+    let items_to_delete: Vec<(i64, String, String)> = stmt
+        .query_map([to_delete], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Delete the items
+    for (id, item_type, content) in items_to_delete {
+        // Delete the item
+        conn.execute("DELETE FROM history WHERE id = ?", [id])?;
+
+        // If it's an image, delete the file
+        if item_type == "image" {
+            let images_dir = crate::config::images_dir();
+            if let Some(filename) = content.strip_prefix("images/") {
+                let image_path = images_dir.join(filename);
+                let _ = std::fs::remove_file(image_path);
+            }
+        }
+    }
+
+    Ok(to_delete)
+}

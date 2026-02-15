@@ -16,12 +16,29 @@ mod window;
 mod commands;
 mod config;
 mod window_config;
+mod app_settings;
 
 // Re-export types used by commands
 pub use commands::ClipboardItem;
 pub use commands::check_clipboard;
 pub use db::DatabaseState;
 pub use hotkey::HotkeyState;
+
+use std::sync::{Arc, Mutex};
+
+/// App state to track if settings dialog is open
+#[derive(Clone)]
+pub struct AppState {
+    pub settings_open: Arc<Mutex<bool>>,
+}
+
+impl AppState {
+    pub fn new() -> Self {
+        Self {
+            settings_open: Arc::new(Mutex::new(false)),
+        }
+    }
+}
 
 // Monitor module - Clipboard monitoring
 mod monitor;
@@ -31,7 +48,6 @@ use tauri::{
     tray::TrayIconBuilder,
     menu::MenuBuilder,
     Manager,
-    Emitter,
     Size,
     PhysicalSize,
     Position,
@@ -119,6 +135,10 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
     })?;
     app.manage(conn);
 
+    // Initialize app state
+    let app_state = AppState::new();
+    app.manage(app_state);
+
     // Initialize hotkey manager
     let hotkey_state = HotkeyState::new()?;
     app.manage(hotkey_state);
@@ -157,7 +177,11 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
 
     let manager = app.state::<HotkeyState>();
     let guard = manager.manager.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
-    hotkey::register_hotkey(&guard, &window)?;
+
+    // Load settings and register hotkey
+    let settings = app_settings::load_settings().unwrap_or_default();
+    hotkey::register_hotkey_with_settings(&guard, &window, &settings.hotkey_modifiers, &settings.hotkey_key)?;
+
     drop(guard);
     setup_window_behavior(app)?;
     setup_window_transparency(app)?;
@@ -193,6 +217,9 @@ async fn main() {
             commands::check_clipboard,
             commands::delete_item,
             commands::clear_history,
+            commands::get_settings,
+            commands::save_settings,
+            commands::set_settings_dialog_open,
             save_window_state,
             get_window_state,
             move_window,

@@ -157,11 +157,22 @@ pub fn setup_window_behavior(app: &tauri::App) -> Result<(), String> {
         return Ok(());
     };
 
-    // Hide window when it loses focus
+    // Hide window when it loses focus (unless settings dialog is open)
     let win_clone = window.clone();
+    let app_handle = app.handle().clone();
     let _ = window.on_window_event(move |event| {
         if let tauri::WindowEvent::Focused(focused) = event {
             if !focused {
+                // Check if settings dialog is open
+                if let Some(state) = app_handle.try_state::<crate::AppState>() {
+                    if let Ok(settings_open) = state.settings_open.lock() {
+                        if *settings_open {
+                            // Don't hide window when settings dialog is open
+                            logger::debug("Window", "Window lost focus but settings dialog is open, not hiding");
+                            return;
+                        }
+                    }
+                }
                 let _ = win_clone.hide();
             }
         }

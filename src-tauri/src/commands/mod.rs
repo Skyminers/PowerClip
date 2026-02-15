@@ -14,6 +14,7 @@ use crate::clipboard::{self, ClipboardContent};
 use crate::db::{self, ClipboardItem as DbClipboardItem};
 use crate::logger;
 use crate::config::{data_dir, images_dir};
+use crate::app_settings;
 
 /// Clipboard item returned to frontend
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
@@ -181,7 +182,7 @@ pub async fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
 /// Show window and try to focus it
 #[tauri::command]
 pub async fn show_and_focus_window(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::{Manager, Emitter};
+    use tauri::Manager;
     if let Some(window) = app.get_webview_window("main") {
         let is_visible = window.is_visible().map_err(|e| e.to_string())?;
         if !is_visible {
@@ -299,17 +300,21 @@ pub async fn check_clipboard(
         return Ok(());
     };
 
+    // Get database connection
+    let state = app.state::<crate::DatabaseState>();
+    let conn = state.conn.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+
+    let mut new_item_saved = false;
+
     match content {
         ClipboardContent::Text(text) => {
             let hash = db::calculate_hash(text.as_bytes());
-
-            let state = app.state::<crate::DatabaseState>();
-            let conn = state.conn.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
 
             if let Some(new_item) = db::save_item(&conn, "text", &text, &hash).map_err(|e| e.to_string())? {
                 logger::debug("Commands", &format!("Text saved: {} chars", text.len()));
                 // Emit event to frontend with new item
                 app.emit_to("main", "powerclip:new-item", &new_item).ok();
+                new_item_saved = true;
             }
         }
         ClipboardContent::Image(image) => {
@@ -317,8 +322,6 @@ pub async fn check_clipboard(
             let hash = db::calculate_hash(&image.bytes);
 
             // Check if already exists
-            let state = app.state::<crate::DatabaseState>();
-            let conn = state.conn.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
             let exists: Result<Option<i64>, _> = conn.query_row(
                 "SELECT id FROM history WHERE hash = ?",
                 [&hash],
@@ -333,6 +336,7 @@ pub async fn check_clipboard(
                     if let Some(new_item) = db::save_item(&conn, "image", &relative_path, &hash).map_err(|e| e.to_string())? {
                         // Emit event to frontend with new item
                         app.emit_to("main", "powerclip:new-item", &new_item).ok();
+                        new_item_saved = true;
                     }
                 }
                 _ => {
@@ -357,11 +361,117 @@ pub async fn check_clipboard(
                     if let Some(new_item) = db::save_item(&conn, "image", &relative_path, &hash).map_err(|e| e.to_string())? {
                         // Emit event to frontend with new item
                         app.emit_to("main", "powerclip:new-item", &new_item).ok();
+                        new_item_saved = true;
                     }
                 }
             }
         }
     }
 
+    // Auto cleanup if enabled
+    if new_item_saved {
+        let settings = app_settings::load_settings().unwrap_or_default();
+        if settings.auto_cleanup_enabled && settings.max_items > 0 {
+            if let Ok(deleted) = db::cleanup_old_items(&conn, settings.max_items) {
+                if deleted > 0 {
+                    logger::info("Commands", &format!("Auto-cleanup: deleted {} old items", deleted));
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Application settings returned to frontend
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Settings {
+    pub auto_cleanup_enabled: bool,
+    pub max_items: i64,
+    pub hotkey_modifiers: String,
+    pub hotkey_key: String,
+    pub display_limit: i64,
+    pub preview_max_length: i64,
+    pub window_opacity: f64,
+}
+
+impl From<app_settings::AppSettings> for Settings {
+    fn from(s: app_settings::AppSettings) -> Self {
+        Self {
+            auto_cleanup_enabled: s.auto_cleanup_enabled,
+            max_items: s.max_items,
+            hotkey_modifiers: s.hotkey_modifiers,
+            hotkey_key: s.hotkey_key,
+            display_limit: s.display_limit,
+            preview_max_length: s.preview_max_length,
+            window_opacity: s.window_opacity,
+        }
+    }
+}
+
+/// Get current application settings
+#[tauri::command]
+pub async fn get_settings() -> Result<Settings, String> {
+    logger::info("Commands", "get_settings called");
+    let settings = app_settings::load_settings()?;
+    logger::info("Commands", &format!("Loaded settings: auto_cleanup={}, max_items={}", settings.auto_cleanup_enabled, settings.max_items));
+    Ok(settings.into())
+}
+
+/// Save application settings
+#[tauri::command]
+pub async fn save_settings(
+    settings: Settings,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    use tauri::Manager;
+
+    logger::info("Commands", &format!("save_settings called: auto_cleanup={}, max_items={}, hotkey={}+{}, display_limit={}, preview_max_length={}, window_opacity={}",
+        settings.auto_cleanup_enabled, settings.max_items, settings.hotkey_modifiers, settings.hotkey_key,
+        settings.display_limit, settings.preview_max_length, settings.window_opacity));
+
+    let app_settings = app_settings::AppSettings {
+        auto_cleanup_enabled: settings.auto_cleanup_enabled,
+        max_items: settings.max_items,
+        hotkey_modifiers: settings.hotkey_modifiers.clone(),
+        hotkey_key: settings.hotkey_key.clone(),
+        display_limit: settings.display_limit,
+        preview_max_length: settings.preview_max_length,
+        window_opacity: settings.window_opacity,
+    };
+    app_settings::save_settings(&app_settings)?;
+
+    // Re-register hotkey with new settings
+    let state = app.state::<crate::HotkeyState>();
+    let manager = state.manager.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+
+    if let Some(window) = app.get_webview_window("main") {
+        // Register new hotkey (unregistering happens automatically when registering a new one)
+        crate::hotkey::register_hotkey_with_settings(
+            &manager,
+            &window,
+            &settings.hotkey_modifiers,
+            &settings.hotkey_key,
+        )?;
+
+        // Note: Window opacity is applied on the frontend via CSS
+    }
+
+    logger::info("Commands", "Settings saved, hotkey updated");
+    Ok(())
+}
+
+/// Set whether settings dialog is open
+#[tauri::command]
+pub async fn set_settings_dialog_open(
+    open: bool,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    use tauri::Manager;
+
+    let state = app.state::<crate::AppState>();
+    *state.settings_open.lock().map_err(|e| e.to_string())? = open;
+
+    logger::debug("Commands", &format!("Settings dialog open: {}", open));
     Ok(())
 }

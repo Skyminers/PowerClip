@@ -6,6 +6,16 @@ export interface ClipboardItem {
   created_at: string;
 }
 
+export interface Settings {
+  auto_cleanup_enabled: boolean;
+  max_items: number;
+  hotkey_modifiers: string;
+  hotkey_key: string;
+  display_limit: number;
+  preview_max_length: number;
+  window_opacity: number;
+}
+
 export interface LogEntry {
   timestamp: string;
   level: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
