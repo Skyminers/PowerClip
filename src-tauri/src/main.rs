@@ -175,12 +175,18 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
         crate::logger::info("Main", &format!("Restored window: {}x{} at ({},{})", config.width, config.height, config.x, config.y));
     }
 
-    let manager = app.state::<HotkeyState>();
-    let guard = manager.manager.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+    let state = app.state::<HotkeyState>();
+    let guard = state.manager.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
 
     // Load settings and register hotkey
     let settings = app_settings::load_settings().unwrap_or_default();
-    hotkey::register_hotkey_with_settings(&guard, &window, &settings.hotkey_modifiers, &settings.hotkey_key)?;
+    hotkey::register_hotkey_with_settings(
+        &guard, 
+        &state.current_hotkey,
+        &state.handler_installed,
+        &window,
+        &settings.hotkey_modifiers, &settings.hotkey_key
+    )?;
 
     drop(guard);
     setup_window_behavior(app)?;

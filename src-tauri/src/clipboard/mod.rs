@@ -42,7 +42,6 @@ pub fn get_clipboard_content() -> Option<ClipboardContent> {
         Ok(image) => {
             let bytes = image.bytes.to_vec();
             if !bytes.is_empty() {
-                logger::info("Clipboard", &format!("Image detected: {} bytes", bytes.len()));
                 return Some(ClipboardContent::Image(ImageData {
                     bytes,
                     width: image.width as u32,
@@ -50,9 +49,7 @@ pub fn get_clipboard_content() -> Option<ClipboardContent> {
                 }));
             }
         }
-        Err(e) => {
-            logger::debug("Clipboard", &format!("No image in clipboard: {}", e));
-        }
+        Err(_) => {},
     }
 
     // Try to get text

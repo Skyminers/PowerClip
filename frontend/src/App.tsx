@@ -10,285 +10,22 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { ClipboardItem, Settings } from './types'
-import { CONTENT_TRUNCATE_LENGTH } from './constants'
 import { theme } from './theme'
+import { logger } from './utils/logger'
 
-// ============================================================================
-// 类型定义
-// ============================================================================
+// 导入组件
+import {
+  ResizeHandle,
+  WindowDragHandler,
+  EmptyState,
+  StatusBar,
+  ClipboardListItem,
+  SettingsDialog
+} from './components'
 
 const colors = theme.colors
 type ImageCache = Record<string, string>
-
-// ============================================================================
-// 日志工具
-// ============================================================================
-
-const logger = {
-  debug: (module: string, message: string) => (window as any).powerclipLogger?.debug(module, message),
-  info: (module: string, message: string) => (window as any).powerclipLogger?.info(module, message),
-  warning: (module: string, message: string) => (window as any).powerclipLogger?.warning(module, message),
-  error: (module: string, message: string) => (window as any).powerclipLogger?.error(module, message),
-}
-
-// ============================================================================
-// 辅助函数
-// ============================================================================
-
-/** 格式化时间为相对时间 */
-function formatTime(createdAt: string): string {
-  try {
-    const date = new Date(createdAt)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const minutes = Math.floor(diff / 60000)
-
-    if (minutes < 1) return '刚刚'
-    if (minutes < 60) return `${minutes}分钟前`
-    if (minutes < 1440) return `${Math.floor(minutes / 60)}小时前`
-    return date.toLocaleDateString('zh-CN')
-  } catch {
-    return createdAt
-  }
-}
-
-/** 格式化内容为简短显示 */
-function formatContent(content: string, type: string): string {
-  if (type === 'text') {
-    const text = content.replace(/\n/g, ' ')
-    return text.length > CONTENT_TRUNCATE_LENGTH
-      ? text.slice(0, CONTENT_TRUNCATE_LENGTH) + '...'
-      : text
-  }
-  return `[图片] ${content.slice(0, 12)}...`
-}
-
-/** 生成预览文本 */
-function getPreview(content: string, maxLength: number = 200): string {
-  return content.length > maxLength
-    ? content.slice(0, maxLength) + '...'
-    : content
-}
-
-// ============================================================================
-// UI 组件
-// ============================================================================
-
-/** 窗口调整大小手柄 */
-function ResizeHandle() {
-  const handleMouseDown = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    try {
-      const currentState = await invoke<{ width: number; height: number; x: number; y: number }>('get_window_state')
-      const startX = e.clientX
-      const startY = e.clientY
-      const startWidth = currentState.width
-      const startHeight = currentState.height
-
-      const onMouseMove = async (moveEvent: MouseEvent) => {
-        const newWidth = startWidth + (moveEvent.clientX - startX)
-        const newHeight = startHeight + (moveEvent.clientY - startY)
-        const clampedWidth = Math.max(300, Math.min(800, newWidth))
-        const clampedHeight = Math.max(200, Math.min(600, newHeight))
-        await invoke('resize_window', { width: clampedWidth, height: clampedHeight })
-      }
-
-      const onMouseUp = () => {
-        document.removeEventListener('mousemove', onMouseMove)
-        document.removeEventListener('mouseup', onMouseUp)
-        invoke('save_window_state').catch(console.error)
-      }
-
-      document.addEventListener('mousemove', onMouseMove)
-      document.addEventListener('mouseup', onMouseUp)
-    } catch (error) {
-      console.error('Failed to start resize:', error)
-    }
-  }
-
-  return <div className="resize-handle" onMouseDown={handleMouseDown} title="拖拽调整大小" />
-}
-
-/** 窗口拖拽区域包装器 */
-function WindowDragHandler({ children }: { children: React.ReactNode }) {
-  const handleDragStart = async (e: React.MouseEvent) => {
-    const target = e.target as HTMLElement
-    // 不在交互元素上触发拖拽
-    if (
-      target.closest('.resize-handle') ||
-      target.tagName === 'INPUT' ||
-      target.tagName === 'TEXTAREA' ||
-      target.tagName === 'BUTTON' ||
-      target.closest('button') ||
-      target.closest('input')
-    ) {
-      return
-    }
-    try {
-      await getCurrentWindow().startDragging()
-    } catch (error) {
-      console.error('Failed to start dragging:', error)
-    }
-  }
-
-  return (
-    <div onMouseDown={handleDragStart} data-tauri-drag-region>
-      {children}
-    </div>
-  )
-}
-
-/** 剪贴板列表项 */
-function ClipboardListItem({
-  item,
-  index,
-  isSelected,
-  imageCache,
-  previewMaxLength,
-  onSelect,
-  onCopy
-}: {
-  item: ClipboardItem
-  index: number
-  isSelected: boolean
-  imageCache: ImageCache
-  previewMaxLength: number
-  onSelect: (id: number) => void
-  onCopy: (item: ClipboardItem) => void
-}) {
-  const isDarwin = navigator.platform.toLowerCase().includes('mac')
-
-  return (
-    <li
-      data-id={item.id}
-      className={`relative px-4 py-3 cursor-pointer transition-all duration-150 fade-in ${isSelected ? 'selected-pulse' : ''}`}
-      style={{ backgroundColor: isSelected ? colors.selected : 'transparent' }}
-      onClick={() => onSelect(item.id)}
-      onDoubleClick={() => onCopy(item)}
-    >
-      <div className="flex items-start justify-between gap-3">
-        {/* 内容区域 */}
-        <div className="flex items-start gap-3 min-w-0 flex-1">
-          <span
-            className={`text-sm flex-shrink-0 mt-0.5 ${isSelected ? 'opacity-90' : ''}`}
-            style={{ color: isSelected ? colors.text : colors.textMuted }}
-          >
-            {item.item_type === 'text' ? <IconDocument /> : <IconImage />}
-          </span>
-          <div className="flex-1 min-w-0">
-            {item.item_type === 'text' ? (
-              <>
-                <p className="text-sm truncate" style={{ color: colors.text }}>
-                  {formatContent(item.content, item.item_type)}
-                </p>
-                {isSelected && (
-                  <p className="text-xs mt-1.5 line-clamp-2 opacity-70" style={{ color: colors.text }}>
-                    {getPreview(item.content, previewMaxLength)}
-                  </p>
-                )}
-              </>
-            ) : (
-              <div className="flex flex-col gap-1">
-                <p className="text-xs" style={{ color: colors.textMuted }}>图片</p>
-                {imageCache[item.content] ? (
-                  <img
-                    src={imageCache[item.content]}
-                    alt="Clipboard image"
-                    className="max-w-[120px] max-h-[80px] object-contain rounded border"
-                    style={{ borderColor: colors.border }}
-                  />
-                ) : (
-                  <span className="text-xs" style={{ color: colors.textMuted }}>加载中...</span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 元数据区域 */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {index < 9 && (
-            <span
-              className="text-xs px-1.5 py-0.5 rounded"
-              style={{
-                backgroundColor: isSelected ? 'rgba(255,255,255,0.15)' : colors.bgSecondary,
-                color: isSelected ? colors.text : colors.textMuted
-              }}
-            >
-              {isDarwin ? '⌘' : 'Ctrl'}{index + 1}
-            </span>
-          )}
-          <span className="text-xs" style={{ color: colors.textMuted }}>
-            {formatTime(item.created_at)}
-          </span>
-        </div>
-      </div>
-    </li>
-  )
-}
-
-/** 文档图标 */
-function IconDocument() {
-  return (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-  )
-}
-
-/** 图片图标 */
-function IconImage() {
-  return (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  )
-}
-
-/** 空状态提示 */
-function EmptyState({ hasSearchQuery }: { hasSearchQuery: boolean }) {
-  return (
-    <li className="px-4 py-16 text-center empty-state">
-      <div className="flex flex-col items-center gap-3" style={{ color: colors.textMuted }}>
-        <svg className="w-12 h-12 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        </svg>
-        <span className="text-sm">{hasSearchQuery ? '未找到匹配的结果' : '暂无剪贴板历史'}</span>
-        <span className="text-xs opacity-50">复制内容后会自动记录</span>
-      </div>
-    </li>
-  )
-}
-
-/** 状态栏 */
-function StatusBar({ totalCount, filteredCount, hasSearchQuery, isDarwin }: {
-  totalCount: number
-  filteredCount: number
-  hasSearchQuery: boolean
-  isDarwin: boolean
-}) {
-  return (
-    <div className="flex items-center justify-between px-4 py-2 text-xs" style={{ backgroundColor: colors.bgSecondary }}>
-      <div className="flex items-center gap-4" style={{ color: colors.textMuted }}>
-        <span>{filteredCount} / {totalCount} 条</span>
-        {hasSearchQuery && <span style={{ color: colors.accent }}>筛选模式</span>}
-      </div>
-      <div className="flex items-center gap-4" style={{ color: colors.textMuted }}>
-        <span className="flex items-center gap-1.5">
-          <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>/</kbd>搜索
-        </span>
-        <span className="flex items-center gap-1.5">
-          <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>Esc</kbd>关闭
-        </span>
-        <span>{isDarwin ? '⌘⇧V' : 'Ctrl+Shift+V'}</span>
-      </div>
-    </div>
-  )
-}
 
 // ============================================================================
 // 主组件
@@ -357,9 +94,7 @@ function App() {
    */
   const fetchHistory = useCallback(async () => {
     try {
-      logger.info('App', 'Fetching clipboard history...')
       const result = await invoke<ClipboardItem[]>('get_history', { limit: settings.display_limit })
-      logger.info('App', `Retrieved ${result.length} items from history`)
 
       setItems(result)
 
@@ -404,7 +139,6 @@ function App() {
    */
   const saveSettings = useCallback((settingsToSave?: Settings) => {
     const finalSettings = settingsToSave || settings
-    logger.info('App', 'Saving settings to backend...')
 
     // 异步保存到后端 (不阻塞 UI)
     invoke('save_settings', { settings: finalSettings })
@@ -559,14 +293,17 @@ function App() {
     const key = e.key
     if (key !== 'Control' && key !== 'Meta' && key !== 'Alt' && key !== 'Shift') {
       const keyCode = key.length === 1 ? `Key${key.toUpperCase()}` : key
-      saveSettings({
+      const newSettings = {
         ...settings,
         hotkey_modifiers: modifiers.join('+') || 'Meta',
         hotkey_key: keyCode,
-      })
+      }
+      // Update local state first (for immediate UI update), then save to backend
+      updateSettings(newSettings)
+      saveSettings(newSettings)
       setRecordingHotkey(false)
     }
-  }, [recordingHotkey, settings, saveSettings])
+  }, [recordingHotkey, settings, updateSettings, saveSettings])
 
   // ==================== 副作用 (Effects) ====================
 
@@ -630,12 +367,10 @@ function App() {
   }, [])
 
   /**
-   * 通知后端设置界面状态 + 焦点恢复 + 保存设置
+   * 通知后端设置界面状态 + 焦点恢复
    */
   useEffect(() => {
-    // 关闭设置时，保存当前的设置（防止用户修改后未失去焦点就关闭）
     if (!showSettings) {
-      saveSettings()
       setTimeout(() => inputRef.current?.focus(), 50)
     }
 
@@ -643,7 +378,7 @@ function App() {
     invoke('set_settings_dialog_open', { open: showSettings })
       .then(() => logger.debug('App', `Settings dialog: ${showSettings}`))
       .catch(err => logger.error('App', `Failed to notify backend: ${err}`))
-  }, [showSettings, saveSettings])
+  }, [showSettings])
 
   /**
    * 快捷键录制监听
@@ -747,115 +482,14 @@ function App() {
 
       {/* 设置界面 (模态框) */}
       {showSettings && (
-        <div
-          className="absolute inset-0 z-50 flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setShowSettings(false)
-          }}
-        >
-          <div className="w-96 max-h-[90vh] overflow-y-auto p-4 rounded-lg shadow-xl" style={{ backgroundColor: colors.bgSecondary }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">设置</h2>
-              <button onClick={() => setShowSettings(false)} className="p-1 rounded hover:bg-white/10">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* 自动清理开关 - checkbox 立即保存 */}
-            <div className="mb-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.auto_cleanup_enabled}
-                  onChange={(e) => {
-                    const newSettings = { ...settings, auto_cleanup_enabled: e.target.checked }
-                    updateSettings(newSettings)
-                    saveSettings(newSettings)
-                  }}
-                  className="w-4 h-4 rounded"
-                />
-                <span>自动清理旧记录</span>
-              </label>
-            </div>
-
-            {/* 最大保存条数 - 失去焦点时保存 */}
-            <div className="mb-4">
-              <label className="block text-sm mb-1" style={{ color: colors.textMuted }}>最大保存条数</label>
-              <input
-                type="number"
-                value={settings.max_items}
-                onChange={(e) => updateSettings({ ...settings, max_items: parseInt(e.target.value) || 100 })}
-                onBlur={(e) => saveSettings({ ...settings, max_items: parseInt(e.target.value) || 100 })}
-                disabled={!settings.auto_cleanup_enabled}
-                min={1}
-                max={10000}
-                className="w-full px-3 py-1.5 rounded bg-white/10 border-none outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-              />
-            </div>
-
-            {/* 显示历史条数 - 失去焦点时保存 */}
-            <div className="mb-4">
-              <label className="block text-sm mb-1" style={{ color: colors.textMuted }}>显示历史条数</label>
-              <input
-                type="number"
-                value={settings.display_limit}
-                onChange={(e) => updateSettings({ ...settings, display_limit: parseInt(e.target.value) || 50 })}
-                onBlur={(e) => saveSettings({ ...settings, display_limit: parseInt(e.target.value) || 50 })}
-                min={10}
-                max={1000}
-                className="w-full px-3 py-1.5 rounded bg-white/10 border-none outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* 文本预览最大长度 - 失去焦点时保存 */}
-            <div className="mb-4">
-              <label className="block text-sm mb-1" style={{ color: colors.textMuted }}>文本预览最大长度</label>
-              <input
-                type="number"
-                value={settings.preview_max_length}
-                onChange={(e) => updateSettings({ ...settings, preview_max_length: parseInt(e.target.value) || 200 })}
-                onBlur={(e) => saveSettings({ ...settings, preview_max_length: parseInt(e.target.value) || 200 })}
-                min={50}
-                max={1000}
-                className="w-full px-3 py-1.5 rounded bg-white/10 border-none outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* 窗口透明度 - 拖动结束时保存 */}
-            <div className="mb-4">
-              <label className="block text-sm mb-1" style={{ color: colors.textMuted }}>
-                窗口透明度: {Math.round(settings.window_opacity * 100)}%
-              </label>
-              <input
-                type="range"
-                value={settings.window_opacity}
-                onChange={(e) => updateSettings({ ...settings, window_opacity: parseFloat(e.target.value) })}
-                onMouseUp={(e) => saveSettings({ ...settings, window_opacity: parseFloat((e.target as HTMLInputElement).value) })}
-                onTouchEnd={(e) => saveSettings({ ...settings, window_opacity: parseFloat((e.target as HTMLInputElement).value) })}
-                min={0.5}
-                max={1.0}
-                step={0.05}
-                className="w-full"
-              />
-            </div>
-
-            {/* 快捷键设置 */}
-            <div className="mb-4">
-              <label className="block text-sm mb-1" style={{ color: colors.textMuted }}>唤起窗口快捷键</label>
-              <button
-                onClick={() => setRecordingHotkey(true)}
-                className={`w-full px-3 py-1.5 rounded text-sm ${
-                  recordingHotkey ? 'bg-blue-500 ring-2 ring-blue-300' : 'bg-white/10 hover:bg-white/20'
-                }`}
-              >
-                {recordingHotkey ? '按下快捷键...' : `${settings.hotkey_modifiers}+${settings.hotkey_key.replace('Key', '')}`}
-              </button>
-            </div>
-          </div>
-        </div>
+        <SettingsDialog
+          settings={settings}
+          recordingHotkey={recordingHotkey}
+          onClose={() => setShowSettings(false)}
+          onUpdateSettings={updateSettings}
+          onSaveSettings={saveSettings}
+          onStartRecordingHotkey={() => setRecordingHotkey(true)}
+        />
       )}
 
       {/* 历史列表 */}

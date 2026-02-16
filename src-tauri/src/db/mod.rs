@@ -84,7 +84,7 @@ pub fn save_item(
                 "UPDATE history SET created_at = ? WHERE id = ?",
                 [&created_at, &id.to_string()],
             )?;
-            logger::debug("Database", &format!("Updated existing item id={}", id));
+            // logger::debug("Database", &format!("Updated existing item id={}", id));
             // Return None because it wasn't a new item
             Ok(None)
         }

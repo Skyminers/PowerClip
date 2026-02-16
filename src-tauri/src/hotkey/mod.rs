@@ -1,5 +1,7 @@
 //! Hotkey module - Global hotkey management
 
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use global_hotkey::GlobalHotKeyEvent;
 use global_hotkey::GlobalHotKeyManager;
 use global_hotkey::hotkey::{Code, Modifiers, HotKey};
@@ -12,10 +14,11 @@ use crate::window::WindowManager;
 /// Hotkey state managed by Tauri
 pub struct HotkeyState {
     pub manager: std::sync::Mutex<GlobalHotKeyManager>,
+    pub current_hotkey: std::sync::Mutex<Option<HotKey>>,
+    pub handler_installed: std::sync::Mutex<bool>,
 }
 
 impl HotkeyState {
-    /// Create a new hotkey state
     pub fn new() -> Result<Self, String> {
         let manager = GlobalHotKeyManager::new().map_err(|e: global_hotkey::Error| {
             logger::error("Hotkey", &format!("Failed to create hotkey manager: {}", e));
@@ -23,6 +26,8 @@ impl HotkeyState {
         })?;
         Ok(Self {
             manager: std::sync::Mutex::new(manager),
+            current_hotkey: std::sync::Mutex::new(None),
+            handler_installed: std::sync::Mutex::new(false),
         })
     }
 }
@@ -86,71 +91,87 @@ fn parse_key_code(key: &str) -> Option<Code> {
     }
 }
 
-/// Register the show/hide hotkey with custom modifiers and key
-#[inline]
+/// 用 AtomicU32 存储当前活跃的 hotkey ID，避免闭包捕获问题
+static ACTIVE_HOTKEY_ID: AtomicU32 = AtomicU32::new(0);
+
 pub fn register_hotkey_with_settings(
     manager: &GlobalHotKeyManager,
+    current_hotkey: &std::sync::Mutex<Option<HotKey>>,
+    handler_installed: &std::sync::Mutex<bool>,
     window: &tauri::WebviewWindow,
     modifiers: &str,
     key: &str,
 ) -> Result<(), String> {
     let modifiers_parsed = parse_modifiers(modifiers);
     let key_code = parse_key_code(key).ok_or_else(|| format!("Invalid key code: {}", key))?;
-
     let hotkey = HotKey::new(Some(modifiers_parsed), key_code);
 
-    logger::info("Hotkey", &format!("Registering hotkey: {}+{}", modifiers, key));
+    logger::info(
+        "Hotkey",
+        &format!(
+            "Registering hotkey: modifiers={}, key={}, id={}",
+            modifiers, key, hotkey.id()
+        ),
+    );
 
-    manager.register(hotkey).map_err(|e: global_hotkey::Error| {
-        logger::error("Hotkey", &format!("Failed to register hotkey: {}", e));
+    // 在同一个锁内完成 unregister → register
+    let mut guard = current_hotkey.lock().map_err(|e| {
+        logger::error("Hotkey", &format!("Failed to lock hotkey state: {}", e));
         e.to_string()
     })?;
 
-    // Set up event handler
-    let win = window.clone();
-    GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
-        if event.id == hotkey.id() && event.state == HotKeyState::Released {
-            let app_handle = win.app_handle();
-            let _ = WindowManager::show_and_notify(&app_handle, &win);
-        }
-    }));
-
-    logger::info("Hotkey", &format!("Registered hotkey: {}+{}", modifiers, key));
-    Ok(())
-}
-
-/// Register the default show/hide hotkey (Cmd+Shift+V on macOS, Ctrl+Shift+V on others)
-#[inline]
-pub fn register_hotkey(manager: &GlobalHotKeyManager, window: &tauri::WebviewWindow) -> Result<(), String> {
-    cfg_if::cfg_if! {
-        if #[cfg(target_os = "macos")] {
-            let hotkey = HotKey::new(
-                Some(Modifiers::META | Modifiers::SHIFT),
-                Code::KeyV,
+    // 反注册旧热键
+    if let Some(old_hotkey) = guard.take() {
+        logger::info(
+            "Hotkey",
+            &format!("Unregistering old hotkey, id={}", old_hotkey.id()),
+        );
+        if let Err(e) = manager.unregister(old_hotkey) {
+            logger::error(
+                "Hotkey",
+                &format!("Failed to unregister old hotkey: {}", e),
             );
-            logger::info("Hotkey", "Registered Cmd+Shift+V (macOS)");
-        } else {
-            let hotkey = HotKey::new(
-                Some(Modifiers::CONTROL | Modifiers::SHIFT),
-                Code::KeyV,
-            );
-            logger::info("Hotkey", "Registered Ctrl+Shift+V (Windows/Linux)");
         }
     }
 
+    // 注册新热键
     manager.register(hotkey).map_err(|e: global_hotkey::Error| {
         logger::error("Hotkey", &format!("Failed to register hotkey: {}", e));
         e.to_string()
     })?;
 
-    // Set up event handler
-    let win = window.clone();
-    GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
-        if event.id == hotkey.id() && event.state == HotKeyState::Released {
-            let app_handle = win.app_handle();
-            let _ = WindowManager::show_and_notify(&app_handle, &win);
-        }
-    }));
+    // 注册成功后才保存
+    *guard = Some(hotkey);
+    drop(guard);
 
+    // 原子更新当前活跃的 hotkey ID
+    ACTIVE_HOTKEY_ID.store(hotkey.id(), Ordering::SeqCst);
+    logger::info(
+        "Hotkey",
+        &format!("ACTIVE_HOTKEY_ID set to {}", hotkey.id()),
+    );
+
+    let mut installed = handler_installed.lock().map_err(|e| e.to_string())?;
+    if !*installed {
+        logger::info("Hotkey", "Installing global event handler (first time)");
+        let win = window.clone();
+        GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
+            let active_id = ACTIVE_HOTKEY_ID.load(Ordering::SeqCst);
+            logger::info(
+                "Hotkey",
+                &format!(
+                    "Event received: event_id={}, active_id={}, state={:?}",
+                    event.id, active_id, event.state
+                ),
+            );
+            if event.id == active_id && event.state == HotKeyState::Released {
+                let app_handle = win.app_handle();
+                let _ = WindowManager::show_and_notify(&app_handle, &win);
+            }
+        }));
+        *installed = true;
+    }
+
+    logger::info("Hotkey", "Hotkey registration complete");
     Ok(())
 }

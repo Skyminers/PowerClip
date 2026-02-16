@@ -10,8 +10,8 @@ use std::sync::OnceLock;
 pub const APP_NAME: &str = "PowerClip";
 
 /// Database settings
-pub const HISTORY_LIMIT: i64 = 1000;
-pub const CLIPBOARD_POLL_INTERVAL_MS: u64 = 100;
+pub const HISTORY_LIMIT: i64 = 1000; // Default limit
+pub const CLIPBOARD_POLL_INTERVAL_MS: u64 = 100; // 100 ms
 
 /// Cache the data directory path
 static DATA_DIR: OnceLock<PathBuf> = OnceLock::new();

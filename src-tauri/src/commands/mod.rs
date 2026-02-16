@@ -446,9 +446,11 @@ pub async fn save_settings(
     let manager = state.manager.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
 
     if let Some(window) = app.get_webview_window("main") {
-        // Register new hotkey (unregistering happens automatically when registering a new one)
+        // Register new hotkey (automatically unregisters old one)
         crate::hotkey::register_hotkey_with_settings(
             &manager,
+            &state.current_hotkey,
+            &state.handler_installed,
             &window,
             &settings.hotkey_modifiers,
             &settings.hotkey_key,
