@@ -189,12 +189,16 @@ function App() {
       case 'close':
         setSearchQuery('')
         invoke('hide_window').catch(() => {})
+        // Restore focus to previous app (macOS)
+        if (previousAppBundleId) {
+          invoke('activate_previous_app', { bundleId: previousAppBundleId })
+        }
         break
       case 'focusSearch':
         inputRef.current?.focus()
         break
     }
-  }, [filteredItems, selectedId, copyItem, getCurrentIndex])
+  }, [filteredItems, selectedId, copyItem, getCurrentIndex, previousAppBundleId])
 
   /**
    * 数字键快速复制 (1-9)
