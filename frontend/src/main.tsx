@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import App from './App'
+import { LogLevel, LogEntry, PowerClipLogger } from './types'
 import './index.css'
 
 // ============== Tauri Event Listener ==============
@@ -21,15 +22,6 @@ listen<any>('powerclip:new-item', (event) => {
 })
 
 // ============== Logging System ==============
-type LogLevel = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR'
-
-interface LogEntry {
-  timestamp: string
-  level: LogLevel
-  module: string
-  message: string
-}
-
 const LOG_LEVELS: Record<LogLevel, number> = {
   DEBUG: 0,
   INFO: 1,
@@ -88,6 +80,12 @@ function log(level: LogLevel, module: string, message: string): void {
 }
 
 // Logger API
+declare global {
+  interface Window {
+    powerclipLogger: PowerClipLogger
+  }
+}
+
 window.powerclipLogger = {
   debug: (module: string, message: string) => log('DEBUG', module, message),
   info: (module: string, message: string) => log('INFO', module, message),

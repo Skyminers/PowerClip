@@ -51,18 +51,3 @@ pub fn start_clipboard_monitor(app: AppHandle) {
     });
 }
 
-/// Stop the clipboard monitor thread gracefully
-///
-/// This function signals the monitor thread to exit and waits for it to complete.
-#[inline]
-#[allow(dead_code)]
-pub fn stop_clipboard_monitor() {
-    MONITOR_RUNNING.store(false, Ordering::SeqCst);
-}
-
-/// Check if the clipboard monitor is running
-#[inline]
-#[allow(dead_code)]
-pub fn is_monitor_running() -> bool {
-    MONITOR_RUNNING.load(Ordering::SeqCst)
-}

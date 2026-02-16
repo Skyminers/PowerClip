@@ -3,9 +3,11 @@
  * 使用后端提供的日志系统
  */
 
-export const logger = {
-  debug: (module: string, message: string) => (window as any).powerclipLogger?.debug(module, message),
-  info: (module: string, message: string) => (window as any).powerclipLogger?.info(module, message),
-  warning: (module: string, message: string) => (window as any).powerclipLogger?.warning(module, message),
-  error: (module: string, message: string) => (window as any).powerclipLogger?.error(module, message),
+import { PowerClipLogger } from '../types'
+
+export const logger: PowerClipLogger = {
+  debug: (module: string, message: string) => window.powerclipLogger?.debug(module, message),
+  info: (module: string, message: string) => window.powerclipLogger?.info(module, message),
+  warning: (module: string, message: string) => window.powerclipLogger?.warning(module, message),
+  error: (module: string, message: string) => window.powerclipLogger?.error(module, message),
 }
