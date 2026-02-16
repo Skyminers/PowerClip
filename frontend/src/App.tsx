@@ -290,9 +290,16 @@ function App() {
     if (e.altKey) modifiers.push('Alt')
     if (e.shiftKey) modifiers.push('Shift')
 
-    const key = e.key
-    if (key !== 'Control' && key !== 'Meta' && key !== 'Alt' && key !== 'Shift') {
-      const keyCode = key.length === 1 ? `Key${key.toUpperCase()}` : key
+    // 获取按键值 - 使用 code 而不是 key，避免特殊字符问题
+    const key = e.code
+
+    if (key !== 'ControlLeft' && key !== 'ControlRight' &&
+        key !== 'MetaLeft' && key !== 'MetaRight' &&
+        key !== 'AltLeft' && key !== 'AltRight' &&
+        key !== 'ShiftLeft' && key !== 'ShiftRight') {
+      // 从 e.code 提取键名 (如 KeyA -> A)
+      const keyName = key.startsWith('Key') ? key.slice(3) : key
+      const keyCode = `Key${keyName.toUpperCase()}`
       const newSettings = {
         ...settings,
         hotkey_modifiers: modifiers.join('+') || 'Meta',
