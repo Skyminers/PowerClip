@@ -45,6 +45,7 @@ function App() {
   // UI 状态
   const [showSettings, setShowSettings] = useState(false)
   const [recordingHotkey, setRecordingHotkey] = useState(false)
+  const [previousAppBundleId, setPreviousAppBundleId] = useState<string>('')
 
   // 应用设置
   const [settings, setSettings] = useState<Settings>({
@@ -83,11 +84,17 @@ function App() {
       await invoke('copy_to_clipboard', { item })
       await invoke('hide_window')
       logger.info('App', 'Item copied and window hidden')
+
+      // 恢复焦点到之前的应用 (macOS)
+      if (previousAppBundleId) {
+        await invoke('activate_previous_app', { bundleId: previousAppBundleId })
+        logger.info('App', `Restored focus to app: ${previousAppBundleId}`)
+      }
     } catch (error) {
       logger.error('App', `Failed to copy item: ${error}`)
       console.error('Failed to copy:', error)
     }
-  }, [])
+  }, [previousAppBundleId])
 
   /**
    * 从后端获取历史记录
@@ -403,6 +410,13 @@ function App() {
   useEffect(() => {
     const handleWindowShown = async () => {
       try {
+        // 获取当前聚焦的应用，用于之后恢复
+        if (isDarwin) {
+          const bundleId = await invoke<string>('get_previous_app')
+          setPreviousAppBundleId(bundleId)
+          logger.info('App', `Previous app bundle ID: ${bundleId}`)
+        }
+
         const result = await invoke<ClipboardItem[]>('get_history', { limit: settings.display_limit })
         setItems(result)
 
@@ -422,7 +436,7 @@ function App() {
 
     window.addEventListener('powerclip:window-shown', handleWindowShown)
     return () => window.removeEventListener('powerclip:window-shown', handleWindowShown)
-  }, [settings.display_limit])
+  }, [settings.display_limit, isDarwin])
 
   /**
    * 自动滚动到选中项

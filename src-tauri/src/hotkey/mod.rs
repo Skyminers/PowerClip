@@ -137,6 +137,33 @@ fn parse_key_code(key: &str) -> Option<Code> {
 /// 用 AtomicU32 存储当前活跃的 hotkey ID，避免闭包捕获问题
 static ACTIVE_HOTKEY_ID: AtomicU32 = AtomicU32::new(0);
 
+/// Store the previous app bundle ID (captured when hotkey is pressed)
+static PREVIOUS_APP_BUNDLE_ID: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Get the previous app bundle ID (captured when hotkey was pressed)
+pub fn get_previous_app_from_hotkey() -> Option<String> {
+    PREVIOUS_APP_BUNDLE_ID.get().cloned()
+}
+
+/// Capture the previous app before showing window
+fn capture_previous_app() {
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let output = Command::new("osascript")
+            .args(["-e", "tell application \"System Events\" to get bundle identifier of first process whose frontmost is true"])
+            .output();
+
+        if let Ok(output) = output {
+            let bundle_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !bundle_id.is_empty() && bundle_id != "missing value" {
+                let _ = PREVIOUS_APP_BUNDLE_ID.set(bundle_id);
+                logger::debug("Hotkey", &format!("Captured previous app: {}", PREVIOUS_APP_BUNDLE_ID.get().unwrap_or(&String::new())));
+            }
+        }
+    }
+}
+
 pub fn register_hotkey_with_settings(
     manager: &GlobalHotKeyManager,
     current_hotkey: &std::sync::Mutex<Option<HotKey>>,
@@ -200,13 +227,10 @@ pub fn register_hotkey_with_settings(
         let win = window.clone();
         GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
             let active_id = ACTIVE_HOTKEY_ID.load(Ordering::SeqCst);
-            logger::info(
-                "Hotkey",
-                &format!(
-                    "Event received: event_id={}, active_id={}, state={:?}",
-                    event.id, active_id, event.state
-                ),
-            );
+            if event.id == active_id && event.state == HotKeyState::Pressed {
+                // Capture previous app BEFORE showing window (while PowerClip is not yet frontmost)
+                capture_previous_app();
+            }
             if event.id == active_id && event.state == HotKeyState::Released {
                 let app_handle = win.app_handle();
                 let _ = WindowManager::show_and_notify(&app_handle, &win);

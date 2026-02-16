@@ -179,6 +179,75 @@ pub async fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Get the frontmost application bundle identifier before showing our window
+#[tauri::command]
+pub async fn get_previous_app() -> Result<String, String> {
+    // Get from hotkey handler (captured when hotkey was pressed)
+    if let Some(bundle_id) = crate::hotkey::get_previous_app_from_hotkey() {
+        logger::info("Commands", &format!("Previous app from hotkey handler: {}", bundle_id));
+        return Ok(bundle_id);
+    }
+
+    // Fallback: query directly (but this might return "missing value")
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        logger::info("Commands", "Getting previous app bundle ID (fallback)...");
+
+        let output = Command::new("osascript")
+            .args(["-e", "tell application \"System Events\" to get bundle identifier of first process whose frontmost is true"])
+            .output()
+            .map_err(|e| {
+                logger::error("Commands", &format!("Failed to get previous app: {}", e));
+                e.to_string()
+            })?;
+
+        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        logger::info("Commands", &format!("Previous app bundle ID (fallback): {}", result));
+        Ok(result)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(String::new())
+    }
+}
+
+/// Restore focus to the previous application
+#[tauri::command]
+pub async fn activate_previous_app(bundle_id: String) -> Result<(), String> {
+    logger::info("Commands", &format!("Attempting to activate previous app: {}", bundle_id));
+
+    if bundle_id.is_empty() {
+        logger::info("Commands", "Bundle ID is empty, skipping");
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let result = Command::new("osascript")
+            .args(["-e", &format!("tell application id \"{}\" to activate", bundle_id)])
+            .output();
+
+        match result {
+            Ok(output) => {
+                if output.status.success() {
+                    logger::info("Commands", &format!("Successfully activated: {}", bundle_id));
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    logger::error("Commands", &format!("Failed to activate: {}", stderr));
+                }
+            }
+            Err(e) => {
+                logger::error("Commands", &format!("Error activating app: {}", e));
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Show window and try to focus it
 #[tauri::command]
 pub async fn show_and_focus_window(app: tauri::AppHandle) -> Result<(), String> {

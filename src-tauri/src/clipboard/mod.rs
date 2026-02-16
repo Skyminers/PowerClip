@@ -56,13 +56,10 @@ pub fn get_clipboard_content() -> Option<ClipboardContent> {
     match clipboard.get_text() {
         Ok(text) => {
             if !text.is_empty() && !text.contains('\0') {
-                logger::debug("Clipboard", &format!("Text detected: {} chars", text.len()));
                 return Some(ClipboardContent::Text(text));
             }
         }
-        Err(e) => {
-            logger::debug("Clipboard", &format!("No text in clipboard: {}", e));
-        }
+        Err(_) => { }
     }
 
     None
