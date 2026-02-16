@@ -228,6 +228,7 @@ async fn main() {
             commands::set_settings_dialog_open,
             commands::get_previous_app,
             commands::activate_previous_app,
+            commands::simulate_paste,
             save_window_state,
             get_window_state,
             move_window,

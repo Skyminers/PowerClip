@@ -118,6 +118,26 @@ export function SettingsDialog({
           />
         </div>
 
+        {/* 自动粘贴开关 */}
+        <div className="mb-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings.auto_paste_enabled}
+              onChange={(e) => {
+                const newSettings = { ...settings, auto_paste_enabled: e.target.checked }
+                onUpdateSettings(newSettings)
+                onSaveSettings(newSettings)
+              }}
+              className="w-4 h-4 rounded"
+            />
+            <span>选择后自动粘贴</span>
+          </label>
+          <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
+            启用后，选择项目时会自动复制并粘贴到当前位置
+          </p>
+        </div>
+
         {/* 快捷键设置 */}
         <div className="mb-4">
           <label className="block text-sm mb-1" style={{ color: colors.textMuted }}>唤起窗口快捷键</label>

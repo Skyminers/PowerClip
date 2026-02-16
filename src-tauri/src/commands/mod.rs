@@ -248,6 +248,47 @@ pub async fn activate_previous_app(bundle_id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Simulate paste action (Cmd+V on macOS, Ctrl+V on Windows)
+#[tauri::command]
+pub async fn simulate_paste() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        // First activate the previous app, then simulate Cmd+V
+        let result = Command::new("osascript")
+            .args(["-e", "tell application \"System Events\" to keystroke \"v\" using command down"])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if !result.status.success() {
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            logger::error("Commands", &format!("Failed to simulate paste: {}", stderr));
+            return Err(stderr.to_string());
+        }
+
+        logger::info("Commands", "Simulated paste (Cmd+V)");
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        let result = Command::new("cmd")
+            .args(["/C", "ctrl+v"])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if !result.status.success() {
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            logger::error("Commands", &format!("Failed to simulate paste: {}", stderr));
+            return Err(stderr.to_string());
+        }
+
+        logger::info("Commands", "Simulated paste (Ctrl+V)");
+    }
+
+    Ok(())
+}
+
 /// Show window and try to focus it
 #[tauri::command]
 pub async fn show_and_focus_window(app: tauri::AppHandle) -> Result<(), String> {
@@ -256,7 +297,6 @@ pub async fn show_and_focus_window(app: tauri::AppHandle) -> Result<(), String> 
         let is_visible = window.is_visible().map_err(|e| e.to_string())?;
         if !is_visible {
             window.show().map_err(|e| e.to_string())?;
-            // Try to focus - on macOS this might fail but we try
             let _ = window.set_focus();
             // Notify frontend
             use tauri::Emitter;
@@ -462,6 +502,7 @@ pub struct Settings {
     pub display_limit: i64,
     pub preview_max_length: i64,
     pub window_opacity: f64,
+    pub auto_paste_enabled: bool,
 }
 
 impl From<app_settings::AppSettings> for Settings {
@@ -474,6 +515,7 @@ impl From<app_settings::AppSettings> for Settings {
             display_limit: s.display_limit,
             preview_max_length: s.preview_max_length,
             window_opacity: s.window_opacity,
+            auto_paste_enabled: s.auto_paste_enabled,
         }
     }
 }
@@ -507,6 +549,7 @@ pub async fn save_settings(
         display_limit: settings.display_limit,
         preview_max_length: settings.preview_max_length,
         window_opacity: settings.window_opacity,
+        auto_paste_enabled: settings.auto_paste_enabled,
     };
     app_settings::save_settings(&app_settings)?;
 

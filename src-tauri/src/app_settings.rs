@@ -26,6 +26,8 @@ pub struct AppSettings {
     pub preview_max_length: i64,
     /// Window opacity (0.5 - 1.0)
     pub window_opacity: f64,
+    /// Whether to automatically paste after selecting an item
+    pub auto_paste_enabled: bool,
 }
 
 impl Default for AppSettings {
@@ -42,6 +44,7 @@ impl Default for AppSettings {
             display_limit: 50,
             preview_max_length: 200,
             window_opacity: 0.95,
+            auto_paste_enabled: false,
         }
     }
 }

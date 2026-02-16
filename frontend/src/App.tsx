@@ -56,6 +56,7 @@ function App() {
     display_limit: 50,
     preview_max_length: 200,
     window_opacity: 0.95,
+    auto_paste_enabled: false,
   })
 
   // DOM 引用
@@ -79,22 +80,25 @@ function App() {
    * 复制项目到系统剪贴板并隐藏窗口
    */
   const copyItem = useCallback(async (item: ClipboardItem) => {
-    logger.info('App', `Copying item id=${item.id}, type=${item.item_type}`)
+    logger.info('App', `Copying item id=${item.id}, type=${item.item_type}, auto_paste=${settings.auto_paste_enabled}`)
     try {
       await invoke('copy_to_clipboard', { item })
       await invoke('hide_window')
-      logger.info('App', 'Item copied and window hidden')
 
-      // 恢复焦点到之前的应用 (macOS)
       if (previousAppBundleId) {
         await invoke('activate_previous_app', { bundleId: previousAppBundleId })
         logger.info('App', `Restored focus to app: ${previousAppBundleId}`)
+
+        if (settings.auto_paste_enabled) {
+          await invoke('simulate_paste')
+          logger.info('App', 'Auto paste triggered')
+        }
       }
     } catch (error) {
       logger.error('App', `Failed to copy item: ${error}`)
       console.error('Failed to copy:', error)
     }
-  }, [previousAppBundleId])
+  }, [previousAppBundleId, settings.auto_paste_enabled])
 
   /**
    * 从后端获取历史记录
