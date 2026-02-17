@@ -2,6 +2,42 @@
 
 use crate::window_config::WindowConfig;
 use crate::logger;
+use crate::window::PREVIOUS_APP_BUNDLE_ID;
+
+#[cfg(target_os = "macos")]
+mod macos {
+    use objc2::runtime::AnyObject;
+    use objc2::{msg_send, class};
+
+    /// Activate an app by bundle identifier (~0-5ms)
+    pub fn activate_app(bundle_id: &str) -> bool {
+        unsafe {
+            let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
+
+            // Get running applications
+            let apps: *mut AnyObject = msg_send![workspace, runningApplications];
+            let count: usize = msg_send![apps, count];
+
+            for i in 0..count {
+                let app: *mut AnyObject = msg_send![apps, objectAtIndex: i];
+                let bid: *mut AnyObject = msg_send![app, bundleIdentifier];
+                if bid.is_null() {
+                    continue;
+                }
+                let utf8: *const std::ffi::c_char = msg_send![bid, UTF8String];
+                if utf8.is_null() {
+                    continue;
+                }
+                let current = std::ffi::CStr::from_ptr(utf8).to_string_lossy();
+                if current == bundle_id {
+                    let _: bool = msg_send![app, activateWithOptions: 1usize]; // NSApplicationActivateIgnoringOtherApps
+                    return true;
+                }
+            }
+            false
+        }
+    }
+}
 
 /// Save current window position and size
 #[tauri::command]
@@ -65,79 +101,9 @@ pub async fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        use crate::window::PREVIOUS_APP_BUNDLE_ID;
         if let Ok(prev) = PREVIOUS_APP_BUNDLE_ID.lock() {
             if let Some(ref bundle_id) = *prev {
-                crate::window::macos::activate_app(bundle_id);
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Get the frontmost application bundle identifier before showing our window
-#[tauri::command]
-pub async fn get_previous_app() -> Result<String, String> {
-    // Get from hotkey handler (captured when hotkey was pressed)
-    if let Some(bundle_id) = crate::hotkey::get_previous_app_from_hotkey() {
-        logger::info("Commands", &format!("Previous app from hotkey handler: {}", bundle_id));
-        return Ok(bundle_id);
-    }
-
-    // Fallback: query directly (but this might return "missing value")
-    #[cfg(target_os = "macos")]
-    {
-        use std::process::Command;
-        logger::info("Commands", "Getting previous app bundle ID (fallback)...");
-
-        let output = Command::new("osascript")
-            .args(["-e", "tell application \"System Events\" to get bundle identifier of first process whose frontmost is true"])
-            .output()
-            .map_err(|e| {
-                logger::error("Commands", &format!("Failed to get previous app: {}", e));
-                e.to_string()
-            })?;
-
-        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        logger::info("Commands", &format!("Previous app bundle ID (fallback): {}", result));
-        Ok(result)
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        Ok(String::new())
-    }
-}
-
-/// Restore focus to the previous application
-#[tauri::command]
-pub async fn activate_previous_app(bundle_id: String) -> Result<(), String> {
-    logger::info("Commands", &format!("Attempting to activate previous app: {}", bundle_id));
-
-    if bundle_id.is_empty() {
-        logger::info("Commands", "Bundle ID is empty, skipping");
-        return Ok(());
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        use std::process::Command;
-        let result = Command::new("osascript")
-            .args(["-e", &format!("tell application id \"{}\" to activate", bundle_id)])
-            .output();
-
-        match result {
-            Ok(output) => {
-                if output.status.success() {
-                    logger::info("Commands", &format!("Successfully activated: {}", bundle_id));
-                } else {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    logger::error("Commands", &format!("Failed to activate: {}", stderr));
-                }
-            }
-            Err(e) => {
-                logger::error("Commands", &format!("Error activating app: {}", e));
+                macos::activate_app(bundle_id);
             }
         }
     }

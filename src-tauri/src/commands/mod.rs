@@ -160,34 +160,85 @@ async fn copy_image_to_clipboard(content: &str) -> Result<(), String> {
 pub async fn simulate_paste() -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        use std::process::Command;
-        // First activate the previous app, then simulate Cmd+V
-        let result = Command::new("osascript")
-            .args(["-e", "tell application \"System Events\" to keystroke \"v\" using command down"])
-            .output()
-            .map_err(|e| e.to_string())?;
+        use core_graphics::event::{CGEvent, CGEventFlags, CGKeyCode};
+        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 
-        if !result.status.success() {
-            let stderr = String::from_utf8_lossy(&result.stderr);
-            logger::error("Commands", &format!("Failed to simulate paste: {}", stderr));
-            return Err(stderr.to_string());
-        }
+        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+            .map_err(|_| "Failed to create CGEventSource".to_string())?;
+
+        const V_KEYCODE: CGKeyCode = 9;
+
+        let key_down = CGEvent::new_keyboard_event(source.clone(), V_KEYCODE, true)
+            .map_err(|_| "Failed to create key down event".to_string())?;
+        let key_up = CGEvent::new_keyboard_event(source, V_KEYCODE, false)
+            .map_err(|_| "Failed to create key up event".to_string())?;
+
+        key_down.set_flags(CGEventFlags::CGEventFlagCommand);
+        key_up.set_flags(CGEventFlags::CGEventFlagCommand);
+
+        key_down.post(core_graphics::event::CGEventTapLocation::HID);
+        key_up.post(core_graphics::event::CGEventTapLocation::HID);
 
         logger::info("Commands", "Simulated paste (Cmd+V)");
     }
 
     #[cfg(target_os = "windows")]
     {
-        use std::process::Command;
-        let result = Command::new("cmd")
-            .args(["/C", "ctrl+v"])
-            .output()
-            .map_err(|e| e.to_string())?;
+        use windows::Win32::UI::Input::KeyboardAndMouse::{
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
+            KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, VK_V,
+        };
 
-        if !result.status.success() {
-            let stderr = String::from_utf8_lossy(&result.stderr);
-            logger::error("Commands", &format!("Failed to simulate paste: {}", stderr));
-            return Err(stderr.to_string());
+        let inputs = [
+            // Ctrl down
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_CONTROL,
+                        ..Default::default()
+                    },
+                },
+            },
+            // V down
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_V,
+                        ..Default::default()
+                    },
+                },
+            },
+            // V up
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_V,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        ..Default::default()
+                    },
+                },
+            },
+            // Ctrl up
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_CONTROL,
+                        dwFlags: KEYEVENTF_KEYUP,
+                        ..Default::default()
+                    },
+                },
+            },
+        ];
+
+        let sent = unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
+        if sent != inputs.len() as u32 {
+            let err = "SendInput failed to send all key events".to_string();
+            logger::error("Commands", &err);
+            return Err(err);
         }
 
         logger::info("Commands", "Simulated paste (Ctrl+V)");

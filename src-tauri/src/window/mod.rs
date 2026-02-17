@@ -1,15 +1,45 @@
 //! Window module - Window management utilities
 //!
 //! Provides window operations including window management utilities and commands.
+pub mod commands;
 
 use std::sync::Mutex;
-
-pub mod commands;
 
 use crate::logger;
 
 /// Window management utilities
 pub struct WindowManager;
+
+static PREVIOUS_APP_BUNDLE_ID: Mutex<Option<String>> = Mutex::new(None);
+
+#[cfg(target_os = "macos")]
+fn activate_app(bundle_id: &str) {
+    use objc2::runtime::AnyObject;
+    use objc2::{msg_send, class};
+
+    unsafe {
+        let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
+        let apps: *mut AnyObject = msg_send![workspace, runningApplications];
+        let count: usize = msg_send![apps, count];
+
+        for i in 0..count {
+            let app: *mut AnyObject = msg_send![apps, objectAtIndex: i];
+            let bid: *mut AnyObject = msg_send![app, bundleIdentifier];
+            if bid.is_null() {
+                continue;
+            }
+            let utf8: *const std::ffi::c_char = msg_send![bid, UTF8String];
+            if utf8.is_null() {
+                continue;
+            }
+            let current = std::ffi::CStr::from_ptr(utf8).to_string_lossy();
+            if current == bundle_id {
+                let _: bool = msg_send![app, activateWithOptions: 1usize];
+                return;
+            }
+        }
+    }
+}
 
 impl WindowManager {
     /// Hide window and release focus
@@ -23,6 +53,12 @@ impl WindowManager {
                 e.to_string()
             })?;
             logger::info("Window", "Window hidden");
+
+            if let Ok(handle_lock) = PREVIOUS_APP_BUNDLE_ID.lock() {
+                if let Some(ref handle_id) = *handle_lock {
+                    activate_app(handle_id);
+                }
+            }
         }
         Ok(())
     }
@@ -30,6 +66,13 @@ impl WindowManager {
     /// Show window, focus it, and notify frontend
     #[inline]
     pub fn show_and_notify(app: &tauri::AppHandle, window: &tauri::WebviewWindow) -> Result<(), String> {
+        #[cfg(target_os = "macos")]
+        {
+            if let Ok(mut handle_id) = PREVIOUS_APP_BUNDLE_ID.lock() {
+                *handle_id = get_frontmost_bundle_id();
+            }
+        }
+
         window.show().map_err(|e| {
             logger::error("Window", &format!("Failed to show window: {}", e));
             e.to_string()
@@ -45,55 +88,33 @@ impl WindowManager {
     }
 }
 
-// ============================================================================
-// macOS-specific window utilities
-// ============================================================================
-
-/// Store the previous app bundle ID (captured when hotkey is pressed)
-#[cfg(target_os = "macos")]
-pub static PREVIOUS_APP_BUNDLE_ID: Mutex<Option<String>> = Mutex::new(None);
-
-#[cfg(target_os = "macos")]
-mod macos {
-    use objc2::runtime::AnyObject;
-    use objc2::{msg_send, class};
-
-    /// Activate an app by bundle identifier (~0-5ms)
-    pub fn activate_app(bundle_id: &str) -> bool {
-        unsafe {
-            let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
-
-            // Get running applications
-            let apps: *mut AnyObject = msg_send![workspace, runningApplications];
-            let count: usize = msg_send![apps, count];
-
-            for i in 0..count {
-                let app: *mut AnyObject = msg_send![apps, objectAtIndex: i];
-                let bid: *mut AnyObject = msg_send![app, bundleIdentifier];
-                if bid.is_null() {
-                    continue;
-                }
-                let utf8: *const std::ffi::c_char = msg_send![bid, UTF8String];
-                if utf8.is_null() {
-                    continue;
-                }
-                let current = std::ffi::CStr::from_ptr(utf8).to_string_lossy();
-                if current == bundle_id {
-                    let _: bool = msg_send![app, activateWithOptions: 1usize]; // NSApplicationActivateIgnoringOtherApps
-                    return true;
-                }
-            }
-            false
-        }
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-pub static PREVIOUS_APP_BUNDLE_ID: Mutex<Option<String>> = Mutex::new(None);
 
 // ============================================================================
 // Window Setup Functions
 // ============================================================================
+
+#[cfg(target_os = "macos")]
+fn get_frontmost_bundle_id() -> Option<String> {
+    use objc2::runtime::AnyObject;
+    use objc2::{msg_send, class};
+
+    unsafe {
+        let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
+        let app: *mut AnyObject = msg_send![workspace, frontmostApplication];
+        if app.is_null() {
+            return None;
+        }
+        let bundle_id: *mut AnyObject = msg_send![app, bundleIdentifier];
+        if bundle_id.is_null() {
+            return None;
+        }
+        let utf8: *const std::ffi::c_char = msg_send![bundle_id, UTF8String];
+        if utf8.is_null() {
+            return None;
+        }
+        Some(std::ffi::CStr::from_ptr(utf8).to_string_lossy().into_owned())
+    }
+}
 
 use crate::window_config::WindowConfig;
 

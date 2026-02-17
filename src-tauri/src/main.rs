@@ -224,8 +224,6 @@ async fn main() {
             window::commands::move_window,
             window::commands::resize_window,
             window::commands::hide_window,
-            window::commands::get_previous_app,
-            window::commands::activate_previous_app,
         ])
         .run(tauri::generate_context!())
         .expect("Fatal error while running tauri application");

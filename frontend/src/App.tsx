@@ -45,7 +45,6 @@ function App() {
   // UI 状态
   const [showSettings, setShowSettings] = useState(false)
   const [recordingHotkey, setRecordingHotkey] = useState(false)
-  const [previousAppBundleId, setPreviousAppBundleId] = useState<string>('')
 
   // 应用设置
   const [settings, setSettings] = useState<Settings>({
@@ -85,20 +84,15 @@ function App() {
       await invoke('copy_to_clipboard', { item })
       await invoke('hide_window')
 
-      if (previousAppBundleId) {
-        await invoke('activate_previous_app', { bundleId: previousAppBundleId })
-        logger.info('App', `Restored focus to app: ${previousAppBundleId}`)
-
-        if (settings.auto_paste_enabled) {
-          await invoke('simulate_paste')
-          logger.info('App', 'Auto paste triggered')
-        }
+      if (settings.auto_paste_enabled) {
+        await invoke('simulate_paste')
+        logger.info('App', 'Auto paste triggered')
       }
     } catch (error) {
       logger.error('App', `Failed to copy item: ${error}`)
       console.error('Failed to copy:', error)
     }
-  }, [previousAppBundleId, settings.auto_paste_enabled])
+  }, [settings.auto_paste_enabled])
 
   /**
    * 从后端获取历史记录
@@ -193,16 +187,12 @@ function App() {
       case 'close':
         setSearchQuery('')
         invoke('hide_window').catch(() => {})
-        // Restore focus to previous app (macOS)
-        if (previousAppBundleId) {
-          invoke('activate_previous_app', { bundleId: previousAppBundleId })
-        }
         break
       case 'focusSearch':
         inputRef.current?.focus()
         break
     }
-  }, [filteredItems, selectedId, copyItem, getCurrentIndex, previousAppBundleId])
+  }, [filteredItems, selectedId, copyItem, getCurrentIndex])
 
   /**
    * 数字键快速复制 (1-9)
@@ -418,13 +408,6 @@ function App() {
   useEffect(() => {
     const handleWindowShown = async () => {
       try {
-        // 获取当前聚焦的应用，用于之后恢复
-        if (isDarwin) {
-          const bundleId = await invoke<string>('get_previous_app')
-          setPreviousAppBundleId(bundleId)
-          logger.info('App', `Previous app bundle ID: ${bundleId}`)
-        }
-
         const result = await invoke<ClipboardItem[]>('get_history', { limit: settings.display_limit })
         setItems(result)
 
