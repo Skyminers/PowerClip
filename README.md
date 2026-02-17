@@ -85,7 +85,7 @@ PowerClip 采用了目前最前沿的跨平台应用开发方案：
 1. **克隆项目**
 
 ```bash
-git clone [https://github.com/your-username/power-clip.git](https://github.com/your-username/power-clip.git)
+git clone [https://github.com/Skyminers/PowerClip.git](https://github.com/Skyminers/PowerClip.git)
 cd power-clip
 ```
 
