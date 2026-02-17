@@ -24,6 +24,7 @@ base64 = "0.22"
 cfg-if = "1"
 global-hotkey = "0.5"
 thiserror = "2"
+objc2 = "0.5"
 
 [features]
 default = ["custom-protocol"]

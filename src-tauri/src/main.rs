@@ -54,7 +54,7 @@ use tauri::{
     PhysicalPosition,
 };
 
-use crate::window::{setup_window_behavior, setup_window_transparency, save_window_state, get_window_state, move_window, resize_window};
+use crate::window::{setup_window_behavior, setup_window_transparency};
 use crate::config::{data_dir, APP_NAME};
 
 /// Initialize system tray
@@ -213,26 +213,19 @@ async fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::get_history,
             commands::copy_to_clipboard,
-            commands::toggle_window,
-            commands::hide_window,
-            commands::show_and_focus_window,
-            commands::drag_window,
-            commands::get_data_dir,
-            commands::get_image_full_path,
             commands::get_image_asset_url,
             commands::check_clipboard,
-            commands::delete_item,
-            commands::clear_history,
             commands::get_settings,
             commands::save_settings,
             commands::set_settings_dialog_open,
-            commands::get_previous_app,
-            commands::activate_previous_app,
             commands::simulate_paste,
-            save_window_state,
-            get_window_state,
-            move_window,
-            resize_window,
+            window::commands::save_window_state,
+            window::commands::get_window_state,
+            window::commands::move_window,
+            window::commands::resize_window,
+            window::commands::hide_window,
+            window::commands::get_previous_app,
+            window::commands::activate_previous_app,
         ])
         .run(tauri::generate_context!())
         .expect("Fatal error while running tauri application");

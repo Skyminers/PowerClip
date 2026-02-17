@@ -1,37 +1,17 @@
 //! Window module - Window management utilities
 //!
-//! Provides window operations including toggle, drag, and transparency.
+//! Provides window operations including window management utilities and commands.
+
+use std::sync::Mutex;
+
+pub mod commands;
 
 use crate::logger;
-use crate::window_config::WindowConfig;
 
 /// Window management utilities
 pub struct WindowManager;
 
 impl WindowManager {
-    /// Toggle window visibility
-    #[inline]
-    pub fn toggle(window: &tauri::WebviewWindow) -> Result<(), String> {
-        let is_visible = window.is_visible().map_err(|e| e.to_string())?;
-
-        if is_visible {
-            // Release focus to other app before hiding
-            let _ = window.set_focus();
-            window.hide().map_err(|e| {
-                logger::error("Window", &format!("Failed to hide window: {}", e));
-                e.to_string()
-            })?;
-            logger::info("Window", "Window hidden");
-        } else {
-            window.show().map_err(|e| {
-                logger::error("Window", &format!("Failed to show window: {}", e));
-                e.to_string()
-            })?;
-            logger::info("Window", "Window shown");
-        }
-        Ok(())
-    }
-
     /// Hide window and release focus
     #[inline]
     pub fn hide(window: &tauri::WebviewWindow) -> Result<(), String> {
@@ -63,77 +43,59 @@ impl WindowManager {
 
         Ok(())
     }
+}
 
-    /// Start dragging the window
-    #[inline]
-    pub fn start_dragging(window: &tauri::WebviewWindow) -> Result<(), String> {
-        window.start_dragging().map_err(|e| {
-            logger::error("Window", &format!("Failed to start dragging: {}", e));
-            e.to_string()
-        })?;
-        Ok(())
+// ============================================================================
+// macOS-specific window utilities
+// ============================================================================
+
+/// Store the previous app bundle ID (captured when hotkey is pressed)
+#[cfg(target_os = "macos")]
+pub static PREVIOUS_APP_BUNDLE_ID: Mutex<Option<String>> = Mutex::new(None);
+
+#[cfg(target_os = "macos")]
+mod macos {
+    use objc2::runtime::AnyObject;
+    use objc2::{msg_send, class};
+
+    /// Activate an app by bundle identifier (~0-5ms)
+    pub fn activate_app(bundle_id: &str) -> bool {
+        unsafe {
+            let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
+
+            // Get running applications
+            let apps: *mut AnyObject = msg_send![workspace, runningApplications];
+            let count: usize = msg_send![apps, count];
+
+            for i in 0..count {
+                let app: *mut AnyObject = msg_send![apps, objectAtIndex: i];
+                let bid: *mut AnyObject = msg_send![app, bundleIdentifier];
+                if bid.is_null() {
+                    continue;
+                }
+                let utf8: *const std::ffi::c_char = msg_send![bid, UTF8String];
+                if utf8.is_null() {
+                    continue;
+                }
+                let current = std::ffi::CStr::from_ptr(utf8).to_string_lossy();
+                if current == bundle_id {
+                    let _: bool = msg_send![app, activateWithOptions: 1usize]; // NSApplicationActivateIgnoringOtherApps
+                    return true;
+                }
+            }
+            false
+        }
     }
 }
 
-// ============================================================================
-// Tauri Commands
-// ============================================================================
-
-/// Save current window position and size
-#[tauri::command]
-pub async fn save_window_state(window: tauri::WebviewWindow) -> Result<(), String> {
-    let position = window.outer_position().map_err(|e| e.to_string())?;
-    let size = window.outer_size().map_err(|e| e.to_string())?;
-
-    let config = WindowConfig {
-        x: position.x,
-        y: position.y,
-        width: size.width,
-        height: size.height,
-    };
-
-    crate::window_config::save_window_config(&config)?;
-    logger::debug("Window", &format!("Window state saved: {}x{} at ({},{})",
-        config.width, config.height, config.x, config.y));
-
-    Ok(())
-}
-
-/// Get current window configuration
-#[tauri::command]
-pub async fn get_window_state(window: tauri::WebviewWindow) -> Result<WindowConfig, String> {
-    let position = window.outer_position().map_err(|e| e.to_string())?;
-    let size = window.outer_size().map_err(|e| e.to_string())?;
-
-    Ok(WindowConfig {
-        x: position.x,
-        y: position.y,
-        width: size.width,
-        height: size.height,
-    })
-}
-
-/// Move window to specified position
-#[tauri::command]
-pub async fn move_window(window: tauri::WebviewWindow, x: i32, y: i32) -> Result<(), String> {
-    let position = tauri::Position::Physical(tauri::PhysicalPosition::new(x, y));
-    window.set_position(position).map_err(|e| e.to_string())?;
-    logger::debug("Window", &format!("Window moved to ({}, {})", x, y));
-    Ok(())
-}
-
-/// Resize window to specified size
-#[tauri::command]
-pub async fn resize_window(window: tauri::WebviewWindow, width: u32, height: u32) -> Result<(), String> {
-    let size = tauri::Size::Physical(tauri::PhysicalSize::new(width, height));
-    window.set_size(size).map_err(|e| e.to_string())?;
-    logger::debug("Window", &format!("Window resized to {}x{}", width, height));
-    Ok(())
-}
+#[cfg(not(target_os = "macos"))]
+pub static PREVIOUS_APP_BUNDLE_ID: Mutex<Option<String>> = Mutex::new(None);
 
 // ============================================================================
 // Window Setup Functions
 // ============================================================================
+
+use crate::window_config::WindowConfig;
 
 /// Set up window behavior (hide on blur, skip taskbar, etc.)
 #[inline]

@@ -46,10 +46,6 @@ impl ImageCache {
     fn insert(&self, hash: String, data: Vec<u8>) {
         self.images.lock().unwrap().insert(hash, data);
     }
-
-    fn clear(&self) {
-        self.images.lock().unwrap().clear();
-    }
 }
 
 /// Global image cache
@@ -159,95 +155,6 @@ async fn copy_image_to_clipboard(content: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Toggle window visibility
-#[tauri::command]
-pub async fn toggle_window(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::Manager;
-    if let Some(window) = app.get_webview_window("main") {
-        crate::window::WindowManager::toggle(&window)?;
-    }
-    Ok(())
-}
-
-/// Hide window and release focus
-#[tauri::command]
-pub async fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::Manager;
-    if let Some(window) = app.get_webview_window("main") {
-        crate::window::WindowManager::hide(&window)?;
-    }
-    Ok(())
-}
-
-/// Get the frontmost application bundle identifier before showing our window
-#[tauri::command]
-pub async fn get_previous_app() -> Result<String, String> {
-    // Get from hotkey handler (captured when hotkey was pressed)
-    if let Some(bundle_id) = crate::hotkey::get_previous_app_from_hotkey() {
-        logger::info("Commands", &format!("Previous app from hotkey handler: {}", bundle_id));
-        return Ok(bundle_id);
-    }
-
-    // Fallback: query directly (but this might return "missing value")
-    #[cfg(target_os = "macos")]
-    {
-        use std::process::Command;
-        logger::info("Commands", "Getting previous app bundle ID (fallback)...");
-
-        let output = Command::new("osascript")
-            .args(["-e", "tell application \"System Events\" to get bundle identifier of first process whose frontmost is true"])
-            .output()
-            .map_err(|e| {
-                logger::error("Commands", &format!("Failed to get previous app: {}", e));
-                e.to_string()
-            })?;
-
-        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        logger::info("Commands", &format!("Previous app bundle ID (fallback): {}", result));
-        Ok(result)
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        Ok(String::new())
-    }
-}
-
-/// Restore focus to the previous application
-#[tauri::command]
-pub async fn activate_previous_app(bundle_id: String) -> Result<(), String> {
-    logger::info("Commands", &format!("Attempting to activate previous app: {}", bundle_id));
-
-    if bundle_id.is_empty() {
-        logger::info("Commands", "Bundle ID is empty, skipping");
-        return Ok(());
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        use std::process::Command;
-        let result = Command::new("osascript")
-            .args(["-e", &format!("tell application id \"{}\" to activate", bundle_id)])
-            .output();
-
-        match result {
-            Ok(output) => {
-                if output.status.success() {
-                    logger::info("Commands", &format!("Successfully activated: {}", bundle_id));
-                } else {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    logger::error("Commands", &format!("Failed to activate: {}", stderr));
-                }
-            }
-            Err(e) => {
-                logger::error("Commands", &format!("Error activating app: {}", e));
-            }
-        }
-    }
-
-    Ok(())
-}
-
 /// Simulate paste action (Cmd+V on macOS, Ctrl+V on Windows)
 #[tauri::command]
 pub async fn simulate_paste() -> Result<(), String> {
@@ -289,52 +196,6 @@ pub async fn simulate_paste() -> Result<(), String> {
     Ok(())
 }
 
-/// Show window and try to focus it
-#[tauri::command]
-pub async fn show_and_focus_window(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::Manager;
-    if let Some(window) = app.get_webview_window("main") {
-        let is_visible = window.is_visible().map_err(|e| e.to_string())?;
-        if !is_visible {
-            window.show().map_err(|e| e.to_string())?;
-            let _ = window.set_focus();
-            // Notify frontend
-            use tauri::Emitter;
-            let _ = app.emit_to("main", "powerclip:window-shown", ());
-        }
-    }
-    Ok(())
-}
-
-/// Start window dragging
-#[tauri::command]
-pub async fn drag_window(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri::Manager;
-    if let Some(window) = app.get_webview_window("main") {
-        crate::window::WindowManager::start_dragging(&window)?;
-    }
-    Ok(())
-}
-
-/// Get application data directory
-#[tauri::command]
-pub async fn get_data_dir() -> Result<String, String> {
-    let data_dir = data_dir();
-    let path = data_dir.to_string_lossy().to_string();
-    logger::debug("Commands", &format!("get_data_dir: {}", path));
-    Ok(path)
-}
-
-/// Get full path for a relative image path
-#[tauri::command]
-pub async fn get_image_full_path(relative_path: String) -> Result<String, String> {
-    let data_dir = data_dir();
-    let full_path = data_dir.join(relative_path.clone());
-    let path = full_path.to_string_lossy().to_string();
-    logger::debug("Commands", &format!("get_image_full_path: {} -> {}", relative_path, path));
-    Ok(path)
-}
-
 /// Get asset URL for an image path (for frontend display)
 #[tauri::command]
 pub async fn get_image_asset_url(relative_path: String) -> Result<String, String> {
@@ -368,30 +229,6 @@ pub async fn get_image_asset_url(relative_path: String) -> Result<String, String
     logger::debug("Commands", &format!("get_image_asset_url: {} -> data:{};base64,... ({} bytes)",
         relative_path, mime_type, image_data.len()));
     Ok(data_url)
-}
-
-/// Delete a clipboard history item
-#[tauri::command]
-pub async fn delete_item(
-    id: i64,
-    state: tauri::State<'_, crate::DatabaseState>,
-) -> Result<(), String> {
-    let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    db::delete_item(&conn, id).map_err(|e| e.to_string())?;
-    logger::info("Commands", &format!("Deleted item id={}", id));
-    Ok(())
-}
-
-/// Clear all clipboard history
-#[tauri::command]
-pub async fn clear_history(
-    state: tauri::State<'_, crate::DatabaseState>,
-) -> Result<(), String> {
-    let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    db::clear_history(&conn).map_err(|e| e.to_string())?;
-    IMAGE_CACHE.clear();
-    logger::info("Commands", "Cleared all history");
-    Ok(())
 }
 
 /// Check clipboard for new content and save to database

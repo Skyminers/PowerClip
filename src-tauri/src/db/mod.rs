@@ -150,20 +150,6 @@ pub fn get_history(
     Ok(items)
 }
 
-/// Delete an item by ID
-#[inline]
-pub fn delete_item(conn: &Connection, id: i64) -> Result<(), rusqlite::Error> {
-    conn.execute("DELETE FROM history WHERE id = ?", [id])?;
-    Ok(())
-}
-
-/// Clear all history
-#[inline]
-pub fn clear_history(conn: &Connection) -> Result<(), rusqlite::Error> {
-    conn.execute("DELETE FROM history", ())?;
-    Ok(())
-}
-
 /// Clean up old items beyond the limit
 /// Returns the number of items deleted
 #[inline]
