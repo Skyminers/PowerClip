@@ -1,4 +1,4 @@
-//! Hotkey module - Global hotkey management
+//! Hotkey module - Global hotkey registration and event handling
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -6,12 +6,12 @@ use global_hotkey::GlobalHotKeyEvent;
 use global_hotkey::GlobalHotKeyManager;
 use global_hotkey::hotkey::{Code, Modifiers, HotKey};
 use global_hotkey::HotKeyState;
+
 use tauri::Manager;
 
 use crate::logger;
-use crate::window::WindowManager;
 
-/// Hotkey state managed by Tauri
+/// Hotkey state managed by Tauri.
 pub struct HotkeyState {
     pub manager: std::sync::Mutex<GlobalHotKeyManager>,
     pub current_hotkey: std::sync::Mutex<Option<HotKey>>,
@@ -32,7 +32,7 @@ impl HotkeyState {
     }
 }
 
-/// Parse modifiers string to Modifiers
+/// Parse modifiers string (e.g. "Control+Shift") into Modifiers flags.
 fn parse_modifiers(modifiers: &str) -> Modifiers {
     let mut result = Modifiers::empty();
     for part in modifiers.split('+') {
@@ -47,11 +47,9 @@ fn parse_modifiers(modifiers: &str) -> Modifiers {
     result
 }
 
-/// Parse key code string to Code
+/// Parse key code string (e.g. "KeyV" or "V") into Code.
 fn parse_key_code(key: &str) -> Option<Code> {
-    // Handle common key names - match both "KeyA" and "A" formats
     match key.to_uppercase().as_str() {
-        // Letters A-Z
         "KEYA" | "A" => Some(Code::KeyA),
         "KEYB" | "B" => Some(Code::KeyB),
         "KEYC" | "C" => Some(Code::KeyC),
@@ -78,7 +76,6 @@ fn parse_key_code(key: &str) -> Option<Code> {
         "KEYX" | "X" => Some(Code::KeyX),
         "KEYY" | "Y" => Some(Code::KeyY),
         "KEYZ" | "Z" => Some(Code::KeyZ),
-        // Numbers 0-9
         "DIGIT0" | "0" => Some(Code::Digit0),
         "DIGIT1" | "1" => Some(Code::Digit1),
         "DIGIT2" | "2" => Some(Code::Digit2),
@@ -89,7 +86,6 @@ fn parse_key_code(key: &str) -> Option<Code> {
         "DIGIT7" | "7" => Some(Code::Digit7),
         "DIGIT8" | "8" => Some(Code::Digit8),
         "DIGIT9" | "9" => Some(Code::Digit9),
-        // Special keys
         "SPACE" => Some(Code::Space),
         "ENTER" | "RETURN" => Some(Code::Enter),
         "TAB" => Some(Code::Tab),
@@ -101,12 +97,10 @@ fn parse_key_code(key: &str) -> Option<Code> {
         "END" => Some(Code::End),
         "PAGEUP" => Some(Code::PageUp),
         "PAGEDOWN" => Some(Code::PageDown),
-        // Arrow keys
         "ARROWUP" | "UP" => Some(Code::ArrowUp),
         "ARROWDOWN" | "DOWN" => Some(Code::ArrowDown),
         "ARROWLEFT" | "LEFT" => Some(Code::ArrowLeft),
         "ARROWRIGHT" | "RIGHT" => Some(Code::ArrowRight),
-        // Function keys
         "F1" => Some(Code::F1),
         "F2" => Some(Code::F2),
         "F3" => Some(Code::F3),
@@ -119,7 +113,6 @@ fn parse_key_code(key: &str) -> Option<Code> {
         "F10" => Some(Code::F10),
         "F11" => Some(Code::F11),
         "F12" => Some(Code::F12),
-        // Punctuation
         "MINUS" | "-" => Some(Code::Minus),
         "EQUAL" | "=" => Some(Code::Equal),
         "BRACKETLEFT" | "[" => Some(Code::BracketLeft),
@@ -134,9 +127,13 @@ fn parse_key_code(key: &str) -> Option<Code> {
     }
 }
 
-/// 用 AtomicU32 存储当前活跃的 hotkey ID，避免闭包捕获问题
+/// Active hotkey ID for the global event handler.
 static ACTIVE_HOTKEY_ID: AtomicU32 = AtomicU32::new(0);
 
+/// Register a global hotkey with the given modifier and key settings.
+///
+/// Automatically unregisters any previously active hotkey. Installs the
+/// global event handler on the first call.
 pub fn register_hotkey_with_settings(
     manager: &GlobalHotKeyManager,
     current_hotkey: &std::sync::Mutex<Option<HotKey>>,
@@ -149,69 +146,38 @@ pub fn register_hotkey_with_settings(
     let key_code = parse_key_code(key).ok_or_else(|| format!("Invalid key code: {}", key))?;
     let hotkey = HotKey::new(Some(modifiers_parsed), key_code);
 
-    logger::info(
-        "Hotkey",
-        &format!(
-            "Registering hotkey: modifiers={}, key={}, id={}",
-            modifiers, key, hotkey.id()
-        ),
-    );
+    logger::info("Hotkey", &format!("Registering hotkey: {}+{}", modifiers, key));
 
-    // 在同一个锁内完成 unregister → register
-    let mut guard = current_hotkey.lock().map_err(|e| {
-        logger::error("Hotkey", &format!("Failed to lock hotkey state: {}", e));
-        e.to_string()
-    })?;
+    let mut guard = current_hotkey.lock().map_err(|e| e.to_string())?;
 
-    // 反注册旧热键
     if let Some(old_hotkey) = guard.take() {
-        logger::info(
-            "Hotkey",
-            &format!("Unregistering old hotkey, id={}", old_hotkey.id()),
-        );
         if let Err(e) = manager.unregister(old_hotkey) {
-            logger::error(
-                "Hotkey",
-                &format!("Failed to unregister old hotkey: {}", e),
-            );
+            logger::error("Hotkey", &format!("Failed to unregister old hotkey: {}", e));
         }
     }
 
-    // 注册新热键
     manager.register(hotkey).map_err(|e: global_hotkey::Error| {
         logger::error("Hotkey", &format!("Failed to register hotkey: {}", e));
         e.to_string()
     })?;
 
-    // 注册成功后才保存
     *guard = Some(hotkey);
     drop(guard);
 
-    // 原子更新当前活跃的 hotkey ID
     ACTIVE_HOTKEY_ID.store(hotkey.id(), Ordering::SeqCst);
-    logger::info(
-        "Hotkey",
-        &format!("ACTIVE_HOTKEY_ID set to {}", hotkey.id()),
-    );
 
     let mut installed = handler_installed.lock().map_err(|e| e.to_string())?;
     if !*installed {
-        logger::info("Hotkey", "Installing global event handler (first time)");
         let win = window.clone();
         GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
             let active_id = ACTIVE_HOTKEY_ID.load(Ordering::SeqCst);
-            if event.id == active_id && event.state == HotKeyState::Pressed {
-                // Capture previous app BEFORE showing window (while PowerClip is not yet frontmost)
-                
-            }
             if event.id == active_id && event.state == HotKeyState::Released {
                 let app_handle = win.app_handle();
-                let _ = WindowManager::show_and_notify(&app_handle, &win);
+                let _ = crate::window::show_and_notify(app_handle, &win);
             }
         }));
         *installed = true;
     }
 
-    logger::info("Hotkey", "Hotkey registration complete");
     Ok(())
 }

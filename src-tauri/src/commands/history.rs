@@ -1,0 +1,124 @@
+//! History commands - Clipboard history retrieval, saving, and monitoring
+
+use std::fs;
+
+use image::{ImageFormat, RgbaImage};
+use tauri::{Emitter, Manager};
+
+use crate::clipboard::ClipboardContent;
+use crate::db::{self, ClipboardItem as DbClipboardItem};
+use crate::config::{data_dir, images_dir};
+use crate::{clipboard, logger, app_settings};
+
+use super::ClipboardItem;
+use super::image::IMAGE_CACHE;
+
+/// Convert database item to API item.
+impl From<DbClipboardItem> for ClipboardItem {
+    fn from(item: DbClipboardItem) -> Self {
+        Self {
+            id: item.id,
+            item_type: item.item_type,
+            content: item.content,
+            hash: item.hash,
+            created_at: item.created_at,
+        }
+    }
+}
+
+/// Get clipboard history.
+#[tauri::command]
+pub async fn get_history(
+    state: tauri::State<'_, crate::DatabaseState>,
+    limit: i64,
+) -> Result<Vec<ClipboardItem>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let items = db::get_history(&conn, limit).map_err(|e| e.to_string())?;
+    Ok(items.into_iter().map(ClipboardItem::from).collect())
+}
+
+/// Copy a history item back to the system clipboard.
+#[tauri::command]
+pub async fn copy_to_clipboard(item: ClipboardItem) -> Result<(), String> {
+    if item.item_type == "image" {
+        if let Some(image_data) = IMAGE_CACHE.get(&item.hash) {
+            return super::image::copy_image_from_bytes(&image_data);
+        }
+        return copy_image_to_clipboard(&item.content);
+    }
+
+    clipboard::set_clipboard_text(&item.content).map_err(|e| e.to_string())
+}
+
+/// Copy image to clipboard from a file path relative to data_dir.
+fn copy_image_to_clipboard(relative_path: &str) -> Result<(), String> {
+    use image::{GenericImageView, ImageReader};
+
+    let image_path = data_dir().join(relative_path);
+
+    let img = ImageReader::open(&image_path)
+        .map_err(|e| e.to_string())?
+        .decode()
+        .map_err(|e| e.to_string())?;
+
+    let (width, height) = img.dimensions();
+    let rgba = img.to_rgba8();
+
+    clipboard::set_clipboard_image(width, height, &rgba).map_err(|e| e.to_string())
+}
+
+/// Check clipboard for new content and save to database.
+///
+/// Called periodically by the clipboard monitor.
+#[tauri::command]
+pub async fn check_clipboard(app: tauri::AppHandle) -> Result<(), String> {
+    let Some(content) = clipboard::get_clipboard_content() else {
+        return Ok(());
+    };
+
+    let state = app.state::<crate::DatabaseState>();
+    let conn = state.conn.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+
+    let new_item = match content {
+        ClipboardContent::Text(text) => {
+            let hash = db::calculate_hash(text.as_bytes());
+            db::save_item(&conn, "text", &text, &hash).map_err(|e| e.to_string())?
+        }
+        ClipboardContent::Image(image) => {
+            let hash = db::calculate_hash(&image.bytes);
+            let relative_path = format!("images/{}.png", hash);
+
+            // Save image file if it doesn't exist yet
+            let image_path = images_dir().join(format!("{}.png", hash));
+            if !image_path.exists() {
+                fs::create_dir_all(images_dir()).map_err(|e| e.to_string())?;
+
+                let rgba = RgbaImage::from_vec(image.width, image.height, image.bytes)
+                    .ok_or_else(|| "Failed to create image buffer".to_string())?;
+
+                rgba.save_with_format(&image_path, ImageFormat::Png)
+                    .map_err(|e| e.to_string())?;
+
+                let image_data = fs::read(&image_path).map_err(|e| e.to_string())?;
+                IMAGE_CACHE.insert(hash.clone(), image_data);
+            }
+
+            db::save_item(&conn, "image", &relative_path, &hash).map_err(|e| e.to_string())?
+        }
+    };
+
+    if let Some(item) = new_item {
+        app.emit_to("main", "powerclip:new-item", &item).ok();
+
+        let settings = app_settings::load_settings().unwrap_or_default();
+        if settings.auto_cleanup_enabled && settings.max_items > 0 {
+            if let Ok(deleted) = db::cleanup_old_items(&conn, settings.max_items) {
+                if deleted > 0 {
+                    logger::info("Commands", &format!("Auto-cleanup: deleted {} old items", deleted));
+                }
+            }
+        }
+    }
+
+    Ok(())
+}

@@ -48,6 +48,12 @@ pub fn window_config_path() -> PathBuf {
     data_dir().join("window_config.json")
 }
 
+/// Get the settings file path
+#[inline]
+pub fn settings_path() -> PathBuf {
+    data_dir().join("settings.json")
+}
+
 /// Get the images directory path
 #[inline]
 pub fn images_dir() -> PathBuf {

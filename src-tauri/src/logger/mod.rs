@@ -65,7 +65,6 @@ impl Logger {
             let file = OpenOptions::new()
                 .create(true)
                 .append(true)
-                .write(true)
                 .open(&log_path)
                 .expect("Failed to open log file");
 

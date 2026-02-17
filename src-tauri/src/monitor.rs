@@ -1,53 +1,32 @@
-//! Clipboard monitor - Background monitoring using arboard
-//!
-//! This module provides efficient clipboard monitoring by polling the clipboard
-//! using arboard. The actual clipboard check is done via Tauri commands
-//! invoked on the main thread.
+//! Clipboard monitor - Background polling thread
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 
 use crate::config::CLIPBOARD_POLL_INTERVAL_MS;
 use crate::logger;
 
-/// Global flag to control monitor thread
 static MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
 
-/// Start the clipboard monitor thread
+/// Start the clipboard monitor thread.
 ///
-/// This function spawns a background thread that periodically checks the clipboard.
-/// The actual clipboard check is dispatched to the main thread using Tauri events.
-///
-/// The thread will gracefully exit when `stop_clipboard_monitor()` is called.
-#[inline]
+/// Polls clipboard at a fixed interval and emits Tauri events to trigger
+/// the actual clipboard check on the main thread.
 pub fn start_clipboard_monitor(app: AppHandle) {
-    // Don't start if already running
     if MONITOR_RUNNING.swap(true, Ordering::SeqCst) {
         logger::warning("Monitor", "Clipboard monitor already running");
         return;
     }
 
-    // Clone app handle for use in thread
-    let app = app.app_handle().clone();
-
     thread::spawn(move || {
-        logger::info("Monitor", &format!(
-            "Clipboard monitor started (interval: {}ms)",
-            CLIPBOARD_POLL_INTERVAL_MS
-        ));
+        logger::info("Monitor", &format!("Started (interval: {}ms)", CLIPBOARD_POLL_INTERVAL_MS));
 
         while MONITOR_RUNNING.load(Ordering::SeqCst) {
             thread::sleep(Duration::from_millis(CLIPBOARD_POLL_INTERVAL_MS));
-
-            // Emit event to trigger clipboard check
-            // This will be handled by the event listener in setup
             let _ = app.emit("powerclip:check-clipboard", ());
         }
-
-        logger::info("Monitor", "Clipboard monitor stopped");
     });
 }
-

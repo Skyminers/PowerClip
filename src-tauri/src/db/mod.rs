@@ -6,7 +6,7 @@ use serde::Serialize;
 use crate::config::{db_path, HISTORY_LIMIT};
 use crate::logger;
 
-/// Clipboard history item stored in database
+/// Clipboard history item stored in database.
 #[derive(Debug, Clone, Serialize)]
 pub struct ClipboardItem {
     pub id: i64,
@@ -16,19 +16,17 @@ pub struct ClipboardItem {
     pub created_at: String,
 }
 
-/// Database connection state
+/// Database connection state.
 #[derive(Debug)]
 pub struct DatabaseState {
     pub conn: std::sync::Mutex<Connection>,
 }
 
 impl DatabaseState {
-    /// Create a new database state with initialized connection
     pub fn new(_data_dir: &std::path::PathBuf) -> Result<Self, rusqlite::Error> {
         let db = db_path();
         let conn = Connection::open(&db)?;
 
-        // Create table
         conn.execute(
             "CREATE TABLE IF NOT EXISTS history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,11 +38,10 @@ impl DatabaseState {
             (),
         )?;
 
-        // Create index for faster queries
         conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON history(created_at)", ())?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_hash ON history(hash)", ())?;
 
-        logger::info("Database", &format!("Database initialized at {:?}", db));
+        logger::info("Database", &format!("Initialized at {:?}", db));
 
         Ok(Self {
             conn: std::sync::Mutex::new(conn),
@@ -52,16 +49,15 @@ impl DatabaseState {
     }
 }
 
-/// Calculate MD5 hash of content
+/// Calculate MD5 hash of content.
 #[inline]
 pub fn calculate_hash(content: &[u8]) -> String {
-    let digest = md5::compute(content);
-    format!("{:x}", digest)
+    format!("{:x}", md5::compute(content))
 }
 
-/// Insert or update a clipboard item
-/// Returns Some(ClipboardItem) if a new item was inserted, None if just updated timestamp
-#[inline]
+/// Insert or update a clipboard item.
+///
+/// Returns `Some(ClipboardItem)` if a new item was inserted, `None` if only the timestamp was updated.
 pub fn save_item(
     conn: &Connection,
     item_type: &str,
@@ -70,40 +66,31 @@ pub fn save_item(
 ) -> Result<Option<ClipboardItem>, rusqlite::Error> {
     let created_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-    // Check if already exists
-    let exists: Result<Option<i64>, rusqlite::Error> = conn.query_row(
+    let existing_id: Result<Option<i64>, _> = conn.query_row(
         "SELECT id FROM history WHERE hash = ?",
         [hash],
         |row| row.get(0),
     );
 
-    match exists {
+    match existing_id {
         Ok(Some(id)) => {
-            // Update timestamp
             conn.execute(
                 "UPDATE history SET created_at = ? WHERE id = ?",
-                [&created_at, &id.to_string()],
+                rusqlite::params![&created_at, id],
             )?;
-            // logger::debug("Database", &format!("Updated existing item id={}", id));
-            // Return None because it wasn't a new item
             Ok(None)
         }
         _ => {
-            // Insert new
             conn.execute(
                 "INSERT INTO history (type, content, hash, created_at) VALUES (?, ?, ?, ?)",
                 (item_type, content, hash, &created_at),
             )?;
 
-            // Get the inserted id
             let id = conn.last_insert_rowid();
+            logger::debug("Database", &format!("New item hash={}", &hash[..8]));
 
-            logger::debug("Database", &format!("Inserted new item hash={}", &hash[..8]));
-
-            // Cleanup old records
             cleanup_old_records(conn)?;
 
-            // Return the new item
             Ok(Some(ClipboardItem {
                 id,
                 item_type: item_type.to_string(),
@@ -115,8 +102,7 @@ pub fn save_item(
     }
 }
 
-/// Remove excess records beyond HISTORY_LIMIT
-#[inline]
+/// Remove excess records beyond HISTORY_LIMIT.
 fn cleanup_old_records(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute(
         "DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY created_at DESC LIMIT ?)",
@@ -125,8 +111,7 @@ fn cleanup_old_records(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-/// Get clipboard history items
-#[inline]
+/// Get clipboard history items.
 pub fn get_history(
     conn: &Connection,
     limit: i64,
@@ -150,11 +135,10 @@ pub fn get_history(
     Ok(items)
 }
 
-/// Clean up old items beyond the limit
-/// Returns the number of items deleted
-#[inline]
+/// Clean up old items beyond the specified limit.
+///
+/// Returns the number of items deleted.
 pub fn cleanup_old_items(conn: &Connection, max_items: i64) -> Result<i64, rusqlite::Error> {
-    // Get total count
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM history", [], |row| row.get(0))?;
 
     if count <= max_items {
@@ -163,25 +147,20 @@ pub fn cleanup_old_items(conn: &Connection, max_items: i64) -> Result<i64, rusql
 
     let to_delete = count - max_items;
 
-    // Get IDs of oldest items to delete
-    let mut stmt = conn.prepare("SELECT id, item_type, content FROM history ORDER BY created_at ASC LIMIT ?")?;
+    let mut stmt = conn.prepare("SELECT id, type, content FROM history ORDER BY created_at ASC LIMIT ?")?;
     let items_to_delete: Vec<(i64, String, String)> = stmt
-        .query_map([to_delete], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-        })?
+        .query_map([to_delete], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .into_iter()
+        .flatten()
         .filter_map(|r| r.ok())
         .collect();
 
-    // Delete the items
     for (id, item_type, content) in items_to_delete {
-        // Delete the item
         conn.execute("DELETE FROM history WHERE id = ?", [id])?;
 
-        // If it's an image, delete the file
         if item_type == "image" {
-            let images_dir = crate::config::images_dir();
             if let Some(filename) = content.strip_prefix("images/") {
-                let image_path = images_dir.join(filename);
+                let image_path = crate::config::images_dir().join(filename);
                 let _ = std::fs::remove_file(image_path);
             }
         }
