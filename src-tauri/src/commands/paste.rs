@@ -5,24 +5,46 @@
 pub async fn simulate_paste() -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        use core_graphics::event::{CGEvent, CGEventFlags, CGKeyCode};
-        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+        use std::ffi::c_void;
 
-        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
-            .map_err(|_| "Failed to create CGEventSource".to_string())?;
+        #[link(name = "CoreGraphics", kind = "framework")]
+        extern "C" {
+            fn CGEventSourceCreate(stateID: i32) -> *mut c_void;
+            fn CGEventCreateKeyboardEvent(source: *mut c_void, keycode: u16, key_down: bool) -> *mut c_void;
+            fn CGEventSetFlags(event: *mut c_void, flags: u64);
+            fn CGEventPost(tap: u32, event: *mut c_void);
+            fn CFRelease(cf: *mut c_void);
+        }
 
-        const V_KEYCODE: CGKeyCode = 9;
+        const HID_SYSTEM_STATE: i32 = 1;
+        const HID_TAP: u32 = 0;
+        const CMD_FLAG: u64 = 0x0000000000100000; // kCGEventFlagMaskCommand
+        const V_KEYCODE: u16 = 9;
 
-        let key_down = CGEvent::new_keyboard_event(source.clone(), V_KEYCODE, true)
-            .map_err(|_| "Failed to create key down event".to_string())?;
-        let key_up = CGEvent::new_keyboard_event(source, V_KEYCODE, false)
-            .map_err(|_| "Failed to create key up event".to_string())?;
+        unsafe {
+            let source = CGEventSourceCreate(HID_SYSTEM_STATE);
+            if source.is_null() {
+                return Err("Failed to create CGEventSource".to_string());
+            }
 
-        key_down.set_flags(CGEventFlags::CGEventFlagCommand);
-        key_up.set_flags(CGEventFlags::CGEventFlagCommand);
+            let key_down = CGEventCreateKeyboardEvent(source, V_KEYCODE, true);
+            let key_up = CGEventCreateKeyboardEvent(source, V_KEYCODE, false);
 
-        key_down.post(core_graphics::event::CGEventTapLocation::HID);
-        key_up.post(core_graphics::event::CGEventTapLocation::HID);
+            if key_down.is_null() || key_up.is_null() {
+                CFRelease(source);
+                return Err("Failed to create keyboard event".to_string());
+            }
+
+            CGEventSetFlags(key_down, CMD_FLAG);
+            CGEventSetFlags(key_up, CMD_FLAG);
+
+            CGEventPost(HID_TAP, key_down);
+            CGEventPost(HID_TAP, key_up);
+
+            CFRelease(key_down);
+            CFRelease(key_up);
+            CFRelease(source);
+        }
     }
 
     #[cfg(target_os = "windows")]
