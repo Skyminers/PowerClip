@@ -52,8 +52,6 @@ function App() {
     max_items: 100,
     hotkey_modifiers: isDarwin ? 'Meta+Shift' : 'Control+Shift',
     hotkey_key: 'KeyV',
-    display_limit: 50,
-    preview_max_length: 200,
     window_opacity: 0.95,
     auto_paste_enabled: false,
   })
@@ -99,7 +97,7 @@ function App() {
    */
   const fetchHistory = useCallback(async () => {
     try {
-      const result = await invoke<ClipboardItem[]>('get_history', { limit: settings.display_limit })
+      const result = await invoke<ClipboardItem[]>('get_history', { limit: 10000 })
 
       setItems(result)
 
@@ -128,7 +126,7 @@ function App() {
       logger.error('App', `Failed to fetch history: ${error}`)
       console.error('Failed to fetch history:', error)
     }
-  }, [settings.display_limit])
+  }, [])
 
   /**
    * 更新本地设置状态（不保存到后端）
@@ -149,12 +147,6 @@ function App() {
     invoke('save_settings', { settings: finalSettings })
       .then(() => {
         logger.info('App', 'Settings saved successfully')
-
-        // 如果 display_limit 变化了，刷新历史记录
-        if (finalSettings.display_limit !== settings.display_limit) {
-          logger.info('App', 'Display limit changed, refreshing history...')
-          fetchHistory()
-        }
       })
       .catch(err => {
         logger.error('App', `Failed to save settings: ${err}`)
@@ -408,7 +400,7 @@ function App() {
   useEffect(() => {
     const handleWindowShown = async () => {
       try {
-        const result = await invoke<ClipboardItem[]>('get_history', { limit: settings.display_limit })
+        const result = await invoke<ClipboardItem[]>('get_history', { limit: 10000 })
         setItems(result)
 
         if (listRef.current) {
@@ -427,7 +419,7 @@ function App() {
 
     window.addEventListener('powerclip:window-shown', handleWindowShown)
     return () => window.removeEventListener('powerclip:window-shown', handleWindowShown)
-  }, [settings.display_limit, isDarwin])
+  }, [isDarwin])
 
   /**
    * 自动滚动到选中项
@@ -519,7 +511,6 @@ function App() {
             index={index}
             isSelected={selectedId === item.id}
             imageCache={imageCache}
-            previewMaxLength={settings.preview_max_length}
             onSelect={setSelectedId}
             onCopy={copyItem}
           />

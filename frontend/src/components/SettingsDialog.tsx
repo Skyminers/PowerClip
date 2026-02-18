@@ -72,34 +72,6 @@ export function SettingsDialog({
           />
         </div>
 
-        {/* 显示历史条数 - 失去焦点时保存 */}
-        <div className="mb-4">
-          <label className="block text-sm mb-1" style={{ color: colors.textMuted }}>显示历史条数</label>
-          <input
-            type="number"
-            value={settings.display_limit}
-            onChange={(e) => onUpdateSettings({ ...settings, display_limit: parseInt(e.target.value) || 50 })}
-            onBlur={(e) => onSaveSettings({ ...settings, display_limit: parseInt(e.target.value) || 50 })}
-            min={10}
-            max={1000}
-            className="w-full px-3 py-1.5 rounded bg-white/10 border-none outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* 文本预览最大长度 - 失去焦点时保存 */}
-        <div className="mb-4">
-          <label className="block text-sm mb-1" style={{ color: colors.textMuted }}>文本预览最大长度</label>
-          <input
-            type="number"
-            value={settings.preview_max_length}
-            onChange={(e) => onUpdateSettings({ ...settings, preview_max_length: parseInt(e.target.value) || 200 })}
-            onBlur={(e) => onSaveSettings({ ...settings, preview_max_length: parseInt(e.target.value) || 200 })}
-            min={50}
-            max={1000}
-            className="w-full px-3 py-1.5 rounded bg-white/10 border-none outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
         {/* 窗口透明度 - 拖动结束时保存 */}
         <div className="mb-4">
           <label className="block text-sm mb-1" style={{ color: colors.textMuted }}>

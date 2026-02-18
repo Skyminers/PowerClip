@@ -11,8 +11,6 @@ export interface Settings {
   max_items: number;
   hotkey_modifiers: string;
   hotkey_key: string;
-  display_limit: number;
-  preview_max_length: number;
   window_opacity: number;
   auto_paste_enabled: boolean;
 }

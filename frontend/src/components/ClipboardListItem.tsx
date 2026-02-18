@@ -15,7 +15,6 @@ export function ClipboardListItem({
   index,
   isSelected,
   imageCache,
-  previewMaxLength,
   onSelect,
   onCopy
 }: {
@@ -23,7 +22,6 @@ export function ClipboardListItem({
   index: number
   isSelected: boolean
   imageCache: ImageCache
-  previewMaxLength: number
   onSelect: (id: number) => void
   onCopy: (item: ClipboardItem) => void
 }) {
@@ -54,7 +52,7 @@ export function ClipboardListItem({
                 </p>
                 {isSelected && (
                   <p className="text-xs mt-1.5 line-clamp-2 opacity-70" style={{ color: colors.text }}>
-                    {getPreview(item.content, previewMaxLength)}
+                    {getPreview(item.content, 200)}
                   </p>
                 )}
               </>

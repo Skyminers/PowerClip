@@ -12,8 +12,6 @@ pub struct AppSettings {
     pub max_items: i64,
     pub hotkey_modifiers: String,
     pub hotkey_key: String,
-    pub display_limit: i64,
-    pub preview_max_length: i64,
     pub window_opacity: f64,
     pub auto_paste_enabled: bool,
 }
@@ -29,8 +27,6 @@ impl Default for AppSettings {
                 "Control+Shift".to_string()
             },
             hotkey_key: "KeyV".to_string(),
-            display_limit: 50,
-            preview_max_length: 200,
             window_opacity: 0.95,
             auto_paste_enabled: false,
         }

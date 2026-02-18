@@ -3,7 +3,7 @@
 use rusqlite::Connection;
 use serde::Serialize;
 
-use crate::config::{db_path, HISTORY_LIMIT};
+use crate::config::db_path;
 use crate::logger;
 
 /// Clipboard history item stored in database.
@@ -89,8 +89,6 @@ pub fn save_item(
             let id = conn.last_insert_rowid();
             logger::debug("Database", &format!("New item hash={}", &hash[..8]));
 
-            cleanup_old_records(conn)?;
-
             Ok(Some(ClipboardItem {
                 id,
                 item_type: item_type.to_string(),
@@ -102,14 +100,6 @@ pub fn save_item(
     }
 }
 
-/// Remove excess records beyond HISTORY_LIMIT.
-fn cleanup_old_records(conn: &Connection) -> Result<(), rusqlite::Error> {
-    conn.execute(
-        "DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY created_at DESC LIMIT ?)",
-        [HISTORY_LIMIT],
-    )?;
-    Ok(())
-}
 
 /// Get clipboard history items.
 pub fn get_history(
