@@ -1,32 +1,43 @@
 /**
  * 窗口拖拽区域包装器
+ * 使用 data-tauri-drag-region 属性 + startDragging API
  */
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
 export function WindowDragHandler({ children }: { children: React.ReactNode }) {
-  const handleDragStart = async (e: React.MouseEvent) => {
+  const handleMouseDown = async (e: React.MouseEvent) => {
+    // 只允许左键拖拽
+    if (e.button !== 0) return
+
     const target = e.target as HTMLElement
+
     // 不在交互元素上触发拖拽
     if (
-      target.closest('.resize-handle') ||
       target.tagName === 'INPUT' ||
       target.tagName === 'TEXTAREA' ||
       target.tagName === 'BUTTON' ||
-      target.closest('button') ||
-      target.closest('input')
+      target.closest('input') ||
+      target.closest('button')
     ) {
       return
     }
+
+    console.log('[Drag] Mouse down, starting drag')
     try {
       await getCurrentWindow().startDragging()
+      console.log('[Drag] Drag started successfully')
     } catch (error) {
-      console.error('Failed to start dragging:', error)
+      console.error('[Drag] Failed to start dragging:', error)
     }
   }
 
   return (
-    <div onMouseDown={handleDragStart} data-tauri-drag-region>
+    <div
+      data-tauri-drag-region
+      onMouseDown={handleMouseDown}
+      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+    >
       {children}
     </div>
   )

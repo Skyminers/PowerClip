@@ -50,6 +50,14 @@ body {
   cursor: move;
 }
 
+/* Tauri 2.0 drag region - required for transparent windows */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  cursor: move;
+  /* Ensure the element can receive mouse events */
+  pointer-events: auto;
+}
+
 /* No drag for interactive elements */
 .no-drag {
   -webkit-app-region: no-drag;
