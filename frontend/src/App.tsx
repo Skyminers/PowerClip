@@ -21,7 +21,8 @@ import {
   EmptyState,
   StatusBar,
   ClipboardListItem,
-  SettingsDialog
+  SettingsDialog,
+  ExtensionSelector
 } from './components'
 
 const colors = theme.colors
@@ -44,6 +45,7 @@ function App() {
 
   // UI 状态
   const [showSettings, setShowSettings] = useState(false)
+  const [showExtensions, setShowExtensions] = useState(false)
   const [recordingHotkey, setRecordingHotkey] = useState(false)
 
   // 应用设置
@@ -54,6 +56,7 @@ function App() {
     hotkey_key: 'KeyV',
     window_opacity: 0.95,
     auto_paste_enabled: false,
+    extensions: [],
   })
 
   // DOM 引用
@@ -200,6 +203,9 @@ function App() {
 
   /** 列表的键盘处理 */
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // 扩展选择器打开时，所有键盘事件由 ExtensionSelector 的 capture 阶段处理
+    if (showExtensions) return
+
     // Esc: 先关闭设置，再关闭窗口
     if (e.key === 'Escape') {
       e.preventDefault()
@@ -226,6 +232,12 @@ function App() {
       case 'Enter':
         e.preventDefault()
         handleNavigation('select')
+        break
+      case 'Tab':
+        e.preventDefault()
+        if (selectedId !== null && settings.extensions.length > 0) {
+          setShowExtensions(true)
+        }
         break
       case '/':
         e.preventDefault()
@@ -237,10 +249,13 @@ function App() {
           handleNumberKey(e.key)
         }
     }
-  }, [handleNavigation, handleNumberKey, showSettings])
+  }, [handleNavigation, handleNumberKey, showSettings, showExtensions, selectedId, settings.extensions.length])
 
   /** 搜索框的键盘处理 */
   const handleInputKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // 扩展选择器打开时，所有键盘事件由 ExtensionSelector 的 capture 阶段处理
+    if (showExtensions) return
+
     // Esc: 先关闭设置，再关闭窗口
     if (e.key === 'Escape') {
       e.preventDefault()
@@ -268,8 +283,14 @@ function App() {
         e.preventDefault()
         handleNavigation('select')
         break
+      case 'Tab':
+        e.preventDefault()
+        if (selectedId !== null && settings.extensions.length > 0) {
+          setShowExtensions(true)
+        }
+        break
     }
-  }, [handleNavigation, showSettings])
+  }, [handleNavigation, showSettings, showExtensions, selectedId, settings.extensions.length])
 
   /** 快捷键录制处理 */
   const handleHotkeyKeyDown = useCallback((e: KeyboardEvent) => {
@@ -399,6 +420,11 @@ function App() {
    */
   useEffect(() => {
     const handleWindowShown = async () => {
+      // Reset to main view on window re-show
+      setShowSettings(false)
+      setShowExtensions(false)
+      setRecordingHotkey(false)
+
       try {
         const result = await invoke<ClipboardItem[]>('get_history', { limit: 10000 })
         setItems(result)
@@ -472,7 +498,10 @@ function App() {
             </button>
           )}
           <button
-            onClick={() => setShowSettings(!showSettings)}
+            onClick={() => {
+              setShowExtensions(false)
+              setShowSettings(!showSettings)
+            }}
             className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag"
             title="设置"
           >
@@ -493,6 +522,23 @@ function App() {
           onUpdateSettings={updateSettings}
           onSaveSettings={saveSettings}
           onStartRecordingHotkey={() => setRecordingHotkey(true)}
+        />
+      )}
+
+      {/* 扩展选择器 */}
+      {showExtensions && (
+        <ExtensionSelector
+          extensions={settings.extensions}
+          selectedItem={filteredItems.find(i => i.id === selectedId) || null}
+          onClose={() => {
+            setShowExtensions(false)
+            setTimeout(() => inputRef.current?.focus(), 50)
+          }}
+          onCloseWindow={() => {
+            setShowExtensions(false)
+            setSearchQuery('')
+            invoke('hide_window').catch(() => {})
+          }}
         />
       )}
 

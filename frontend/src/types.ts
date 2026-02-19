@@ -6,6 +6,13 @@ export interface ClipboardItem {
   created_at: string;
 }
 
+export interface Extension {
+  name: string;
+  command: string;
+  timeout: number;
+  close_on_success: boolean;
+}
+
 export interface Settings {
   auto_cleanup_enabled: boolean;
   max_items: number;
@@ -13,6 +20,7 @@ export interface Settings {
   hotkey_key: string;
   window_opacity: number;
   auto_paste_enabled: boolean;
+  extensions: Extension[];
 }
 
 export interface LogEntry {
