@@ -21,6 +21,15 @@ listen<any>('powerclip:new-item', (event) => {
   console.error('[PowerClip] Failed to set up new-item listener:', err)
 })
 
+// Set up settings-changed listener
+listen('powerclip:settings-changed', () => {
+  console.info('[PowerClip] >>> Received settings-changed from backend')
+  window.dispatchEvent(new CustomEvent('powerclip:settings-changed'))
+  console.info('[PowerClip] >>> Dispatched settings-changed to window')
+}).catch(err => {
+  console.error('[PowerClip] Failed to set up settings-changed listener:', err)
+})
+
 // ============== Logging System ==============
 const LOG_LEVELS: Record<LogLevel, number> = {
   DEBUG: 0,

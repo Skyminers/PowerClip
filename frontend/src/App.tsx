@@ -1,54 +1,34 @@
 /**
  * PowerClip - 主应用组件
- *
- * 核心功能:
- * 1. 显示剪贴板历史列表
- * 2. 支持搜索、选择、复制操作
- * 3. 设置管理 (快捷键、清理规则等)
- * 4. 窗口拖拽和调整大小
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { ClipboardItem, Settings } from './types'
 import { theme } from './theme'
-import { logger } from './utils/logger'
 
-// 导入组件
 import {
   ResizeHandle,
   WindowDragHandler,
   EmptyState,
   StatusBar,
   ClipboardListItem,
-  SettingsDialog,
   ExtensionSelector
 } from './components'
 
 const colors = theme.colors
 type ImageCache = Record<string, string>
 
-// ============================================================================
-// 主组件
-// ============================================================================
-
 function App() {
   const isDarwin = navigator.platform.toLowerCase().includes('mac')
 
-  // ==================== 状态管理 ====================
-
-  // 数据状态
+  // 状态
   const [items, setItems] = useState<ClipboardItem[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [imageCache, setImageCache] = useState<ImageCache>({})
-
-  // UI 状态
-  const [showSettings, setShowSettings] = useState(false)
   const [showExtensions, setShowExtensions] = useState(false)
-  const [recordingHotkey, setRecordingHotkey] = useState(false)
 
-  // 应用设置
   const [settings, setSettings] = useState<Settings>({
     auto_cleanup_enabled: false,
     max_items: 100,
@@ -59,179 +39,89 @@ function App() {
     extensions: [],
   })
 
-  // DOM 引用
   const listRef = useRef<HTMLUListElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // ==================== 派生状态 ====================
+  // Refs for global keydown
+  const showExtensionsRef = useRef(showExtensions)
+  showExtensionsRef.current = showExtensions
 
-  const filteredItems = items.filter(item =>
-    item.content.toLowerCase().includes(searchQuery.toLowerCase())
+  // 派生状态
+  const searchLower = useMemo(() => searchQuery.toLowerCase(), [searchQuery])
+  const filteredItems = useMemo(() =>
+    items.filter(item => item.content.toLowerCase().includes(searchLower)),
+    [items, searchLower]
   )
 
-  const getCurrentIndex = useCallback(() => {
-    if (selectedId === null) return -1
-    return filteredItems.findIndex(item => item.id === selectedId)
-  }, [filteredItems, selectedId])
-
-  // ==================== 核心功能函数 ====================
-
-  /**
-   * 复制项目到系统剪贴板并隐藏窗口
-   */
+  // 复制项目
   const copyItem = useCallback(async (item: ClipboardItem) => {
-    logger.info('App', `Copying item id=${item.id}, type=${item.item_type}, auto_paste=${settings.auto_paste_enabled}`)
     try {
       await invoke('copy_to_clipboard', { item })
       await invoke('hide_window')
-
       if (settings.auto_paste_enabled) {
         await invoke('simulate_paste')
-        logger.info('App', 'Auto paste triggered')
       }
     } catch (error) {
-      logger.error('App', `Failed to copy item: ${error}`)
       console.error('Failed to copy:', error)
     }
   }, [settings.auto_paste_enabled])
 
-  /**
-   * 从后端获取历史记录
-   */
-  const fetchHistory = useCallback(async () => {
-    try {
-      const result = await invoke<ClipboardItem[]>('get_history', { limit: 10000 })
+  // 加载设置
+  const loadSettings = useCallback(() => {
+    console.info('[PowerClip] >>> loadSettings called')
+    invoke<Settings>('get_settings')
+      .then(s => {
+        console.info('[PowerClip] >>> Settings loaded:', s.window_opacity, s.hotkey_modifiers, s.hotkey_key)
+        setSettings(s)
+      })
+      .catch(e => console.error('[PowerClip] >>> Failed to load settings:', e))
+  }, [])
 
-      setItems(result)
+  // 全局键盘事件
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (showExtensionsRef.current) return
 
-      // 并行加载所有图片的 data URL
-      const imageItems = result.filter((item: ClipboardItem) => item.item_type === 'image')
-      if (imageItems.length === 0) return
-
-      const newPaths: ImageCache = {}
-      await Promise.all(
-        imageItems.map(async (item: ClipboardItem) => {
-          try {
-            const dataUrl = await invoke<string>('get_image_asset_url', { relativePath: item.content })
-            newPaths[item.content] = dataUrl
-            logger.debug('App', `Image loaded: ${item.content}`)
-          } catch (e) {
-            logger.error('App', `Failed to load image: ${item.content}, error: ${e}`)
-          }
-        })
-      )
-
-      if (Object.keys(newPaths).length > 0) {
-        setImageCache(prev => ({ ...prev, ...newPaths }))
-        logger.info('App', `Loaded ${Object.keys(newPaths).length} image URLs`)
+      // Cmd+, 打开配置文件
+      if (e.key === ',' && (isDarwin ? e.metaKey : e.ctrlKey)) {
+        e.preventDefault()
+        invoke('open_settings_file').catch(() => {})
+        return
       }
-    } catch (error) {
-      logger.error('App', `Failed to fetch history: ${error}`)
-      console.error('Failed to fetch history:', error)
-    }
-  }, [])
 
-  /**
-   * 更新本地设置状态（不保存到后端）
-   * 用于实时更新 UI，实际保存在失去焦点或关闭窗口时
-   */
-  const updateSettings = useCallback((newSettings: Settings) => {
-    setSettings(newSettings)
-  }, [])
-
-  /**
-   * 保存设置到后端
-   * 在用户完成输入后调用（失去焦点、关闭窗口、checkbox/slider变化等）
-   */
-  const saveSettings = useCallback((settingsToSave?: Settings) => {
-    const finalSettings = settingsToSave || settings
-
-    // 异步保存到后端 (不阻塞 UI)
-    invoke('save_settings', { settings: finalSettings })
-      .then(() => {
-        logger.info('App', 'Settings saved successfully')
-      })
-      .catch(err => {
-        logger.error('App', `Failed to save settings: ${err}`)
-      })
-  }, [settings, fetchHistory])
-
-  /**
-   * 键盘导航处理
-   */
-  const handleNavigation = useCallback((action: 'up' | 'down' | 'select' | 'close' | 'focusSearch') => {
-    const currentIndex = getCurrentIndex()
-
-    switch (action) {
-      case 'up':
-        if (currentIndex > 0) {
-          setSelectedId(filteredItems[currentIndex - 1].id)
-        }
-        break
-      case 'down':
-        if (currentIndex < filteredItems.length - 1) {
-          setSelectedId(filteredItems[currentIndex + 1].id)
-        }
-        break
-      case 'select':
-        if (selectedId !== null) {
-          const item = filteredItems.find(i => i.id === selectedId)
-          if (item) copyItem(item)
-        }
-        break
-      case 'close':
+      // Esc: 关闭扩展或隐藏窗口
+      if (e.key === 'Escape') {
+        e.preventDefault()
         setSearchQuery('')
         invoke('hide_window').catch(() => {})
-        break
-      case 'focusSearch':
-        inputRef.current?.focus()
-        break
-    }
-  }, [filteredItems, selectedId, copyItem, getCurrentIndex])
-
-  /**
-   * 数字键快速复制 (1-9)
-   */
-  const handleNumberKey = useCallback((key: string) => {
-    const index = parseInt(key) - 1
-    if (filteredItems[index]) {
-      copyItem(filteredItems[index])
-    }
-  }, [filteredItems, copyItem])
-
-  // ==================== 键盘事件处理 ====================
-
-  /** 列表的键盘处理 */
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // 扩展选择器打开时，所有键盘事件由 ExtensionSelector 的 capture 阶段处理
-    if (showExtensions) return
-
-    // Esc: 先关闭设置，再关闭窗口
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      if (showSettings) {
-        setShowSettings(false)
-      } else {
-        handleNavigation('close')
+        return
       }
-      return
     }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isDarwin])
 
-    // 设置打开时禁用其他快捷键
-    if (showSettings) return
+  // 列表键盘导航
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (showExtensionsRef.current) return
+
+    const idx = filteredItems.findIndex(item => item.id === selectedId)
 
     switch (e.key) {
       case 'ArrowUp':
         e.preventDefault()
-        handleNavigation('up')
+        if (idx > 0) setSelectedId(filteredItems[idx - 1].id)
         break
       case 'ArrowDown':
         e.preventDefault()
-        handleNavigation('down')
+        if (idx < filteredItems.length - 1) setSelectedId(filteredItems[idx + 1].id)
         break
       case 'Enter':
         e.preventDefault()
-        handleNavigation('select')
+        if (selectedId !== null) {
+          const item = filteredItems.find(i => i.id === selectedId)
+          if (item) copyItem(item)
+        }
         break
       case 'Tab':
         e.preventDefault()
@@ -241,236 +131,100 @@ function App() {
         break
       case '/':
         e.preventDefault()
-        handleNavigation('focusSearch')
+        inputRef.current?.focus()
         break
       default:
-        // 数字键 1-9
         if (e.key >= '1' && e.key <= '9') {
-          handleNumberKey(e.key)
+          const item = filteredItems[parseInt(e.key) - 1]
+          if (item) copyItem(item)
         }
     }
-  }, [handleNavigation, handleNumberKey, showSettings, showExtensions, selectedId, settings.extensions.length])
+  }, [filteredItems, selectedId, settings.extensions.length, copyItem])
 
-  /** 搜索框的键盘处理 */
-  const handleInputKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // 扩展选择器打开时，所有键盘事件由 ExtensionSelector 的 capture 阶段处理
-    if (showExtensions) return
+  // 加载历史
+  const loadHistory = useCallback(async () => {
+    try {
+      const result = await invoke<ClipboardItem[]>('get_history', { limit: 10000 })
+      setItems(result)
 
-    // Esc: 先关闭设置，再关闭窗口
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      if (showSettings) {
-        setShowSettings(false)
-      } else {
-        handleNavigation('close')
-      }
-      return
-    }
-
-    // 设置打开时禁用其他快捷键
-    if (showSettings) return
-
-    switch (e.key) {
-      case 'ArrowUp':
-        e.preventDefault()
-        handleNavigation('up')
-        break
-      case 'ArrowDown':
-        e.preventDefault()
-        handleNavigation('down')
-        break
-      case 'Enter':
-        e.preventDefault()
-        handleNavigation('select')
-        break
-      case 'Tab':
-        e.preventDefault()
-        if (selectedId !== null && settings.extensions.length > 0) {
-          setShowExtensions(true)
-        }
-        break
-    }
-  }, [handleNavigation, showSettings, showExtensions, selectedId, settings.extensions.length])
-
-  /** 快捷键录制处理 */
-  const handleHotkeyKeyDown = useCallback((e: KeyboardEvent) => {
-    if (!recordingHotkey) return
-    e.preventDefault()
-
-    if (e.key === 'Escape') {
-      setRecordingHotkey(false)
-      return
-    }
-
-    const modifiers: string[] = []
-    if (e.ctrlKey) modifiers.push('Control')
-    if (e.metaKey) modifiers.push('Meta')
-    if (e.altKey) modifiers.push('Alt')
-    if (e.shiftKey) modifiers.push('Shift')
-
-    // 获取按键值 - 使用 code 而不是 key，避免特殊字符问题
-    const key = e.code
-
-    if (key !== 'ControlLeft' && key !== 'ControlRight' &&
-        key !== 'MetaLeft' && key !== 'MetaRight' &&
-        key !== 'AltLeft' && key !== 'AltRight' &&
-        key !== 'ShiftLeft' && key !== 'ShiftRight') {
-      // 从 e.code 提取键名 (如 KeyA -> A)
-      const keyName = key.startsWith('Key') ? key.slice(3) : key
-      const keyCode = `Key${keyName.toUpperCase()}`
-      const newSettings = {
-        ...settings,
-        hotkey_modifiers: modifiers.join('+') || 'Meta',
-        hotkey_key: keyCode,
-      }
-      // Update local state first (for immediate UI update), then save to backend
-      updateSettings(newSettings)
-      saveSettings(newSettings)
-      setRecordingHotkey(false)
-    }
-  }, [recordingHotkey, settings, updateSettings, saveSettings])
-
-  // ==================== 副作用 (Effects) ====================
-
-  /**
-   * 初始化: 加载历史和设置窗口位置
-   */
-  useEffect(() => {
-    fetchHistory()
-
-    // 首次加载时居中窗口
-    const initWindowPosition = async () => {
-      try {
-        const state = await invoke<{ x: number; y: number; width: number; height: number }>('get_window_state')
-        if (state.x <= 50 && state.y <= 50) {
-          const screenWidth = window.screen.width
-          const screenHeight = window.screen.height
-          const windowWidth = state.width || 450
-          const windowHeight = state.height || 400
-          const newX = Math.floor((screenWidth - windowWidth) / 2)
-          const newY = Math.floor((screenHeight - windowHeight) / 3)
-          await invoke('move_window', { x: newX, y: newY })
-          logger.info('App', `Window positioned at (${newX}, ${newY})`)
-        }
-      } catch (e) {
-        logger.error('App', `Failed to set window position: ${e}`)
-      }
-    }
-
-    initWindowPosition()
-
-    // 监听新剪贴板项
-    const handleNewItem = (event: Event) => {
-      const customEvent = event as CustomEvent<ClipboardItem>
-      const newItem = customEvent.detail
-
-      setItems(prev => [newItem, ...prev.filter(item => item.id !== newItem.id)])
-      setSelectedId(newItem.id)
-
-      // 如果是图片，加载图片
-      if (newItem.item_type === 'image') {
-        invoke<string>('get_image_asset_url', { relativePath: newItem.content })
-          .then(dataUrl => setImageCache(prev => ({ ...prev, [newItem.content]: dataUrl })))
-          .catch(err => logger.error('App', `Failed to load new image: ${err}`))
-      }
-    }
-
-    window.addEventListener('powerclip:new-item', handleNewItem)
-    return () => window.removeEventListener('powerclip:new-item', handleNewItem)
-  }, [fetchHistory])
-
-  /**
-   * 加载设置
-   */
-  useEffect(() => {
-    invoke<Settings>('get_settings')
-      .then(s => {
-        setSettings(s)
-        logger.info('App', 'Settings loaded')
+      // 异步加载图片，不阻塞
+      result.filter(i => i.item_type === 'image').forEach(item => {
+        invoke<string>('get_image_asset_url', { relativePath: item.content })
+          .then(url => setImageCache(prev => ({ ...prev, [item.content]: url })))
+          .catch(() => {})
       })
-      .catch(err => logger.error('App', `Failed to load settings: ${err}`))
+    } catch {}
   }, [])
 
-  /**
-   * 通知后端设置界面状态 + 焦点恢复
-   */
+  // 初始化
   useEffect(() => {
-    if (!showSettings) {
-      setTimeout(() => inputRef.current?.focus(), 50)
-    }
+    loadSettings()
+    loadHistory()
 
-    // 通知后端设置界面状态
-    invoke('set_settings_dialog_open', { open: showSettings })
-      .then(() => logger.debug('App', `Settings dialog: ${showSettings}`))
-      .catch(err => logger.error('App', `Failed to notify backend: ${err}`))
-  }, [showSettings])
-
-  /**
-   * 快捷键录制监听
-   */
-  useEffect(() => {
-    if (recordingHotkey) {
-      window.addEventListener('keydown', handleHotkeyKeyDown)
-      return () => window.removeEventListener('keydown', handleHotkeyKeyDown)
-    }
-  }, [recordingHotkey, handleHotkeyKeyDown])
-
-  /**
-   * 窗口显示时刷新数据
-   */
-  useEffect(() => {
-    const handleWindowShown = async () => {
-      // Reset to main view on window re-show
-      setShowSettings(false)
-      setShowExtensions(false)
-      setRecordingHotkey(false)
-
-      try {
-        const result = await invoke<ClipboardItem[]>('get_history', { limit: 10000 })
-        setItems(result)
-
-        if (listRef.current) {
-          listRef.current.scrollTop = 0
+    invoke<{ x: number; y: number }>('get_window_state')
+      .then(s => {
+        if (s.x <= 50 && s.y <= 50) {
+          invoke('move_window', {
+            x: Math.floor((window.screen.width - 450) / 2),
+            y: Math.floor((window.screen.height - 400) / 3)
+          }).catch(() => {})
         }
+      })
+      .catch(() => {})
 
-        if (result.length > 0) {
-          setSelectedId(result[0].id)
-        }
-
-        setTimeout(() => inputRef.current?.focus(), 50)
-      } catch (error) {
-        console.error('Error in window shown handler:', error)
+    const onNewItem = (e: Event) => {
+      const item = (e as CustomEvent<ClipboardItem>).detail
+      setItems(prev => [item, ...prev.filter(i => i.id !== item.id)])
+      setSelectedId(item.id)
+      if (item.item_type === 'image') {
+        invoke<string>('get_image_asset_url', { relativePath: item.content })
+          .then(url => setImageCache(prev => ({ ...prev, [item.content]: url })))
+          .catch(() => {})
       }
     }
+    window.addEventListener('powerclip:new-item', onNewItem)
+    return () => window.removeEventListener('powerclip:new-item', onNewItem)
+  }, [loadSettings, loadHistory])
 
-    window.addEventListener('powerclip:window-shown', handleWindowShown)
-    return () => window.removeEventListener('powerclip:window-shown', handleWindowShown)
-  }, [isDarwin])
+  // 监听配置文件变化
+  useEffect(() => {
+    const handler = () => {
+      console.info('[PowerClip] >>> settings-changed event received in App')
+      loadSettings()
+    }
+    window.addEventListener('powerclip:settings-changed', handler)
+    console.info('[PowerClip] >>> settings-changed listener registered')
+    return () => window.removeEventListener('powerclip:settings-changed', handler)
+  }, [loadSettings])
 
-  /**
-   * 自动滚动到选中项
-   */
+  // 窗口显示时重置
+  useEffect(() => {
+    const handler = () => {
+      setShowExtensions(false)
+      loadHistory().then(() => {
+        if (listRef.current) listRef.current.scrollTop = 0
+        setTimeout(() => inputRef.current?.focus(), 50)
+      })
+    }
+    window.addEventListener('powerclip:window-shown', handler)
+    return () => window.removeEventListener('powerclip:window-shown', handler)
+  }, [loadHistory])
+
+  // 滚动到选中项
   useEffect(() => {
     if (selectedId !== null && listRef.current) {
-      const selectedElement = listRef.current.querySelector(`[data-id="${selectedId}"]`)
-      if (selectedElement) {
-        selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-      }
+      listRef.current.querySelector(`[data-id="${selectedId}"]`)?.scrollIntoView({ block: 'nearest' })
     }
   }, [selectedId])
 
-  /**
-   * 初始聚焦搜索框
-   */
+  // 初始焦点
   useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 50)
+    const t = setTimeout(() => inputRef.current?.focus(), 50)
+    return () => clearTimeout(t)
   }, [])
-
-  // ==================== 渲染 ====================
 
   return (
     <div className="window-wrapper w-full h-full flex flex-col text-white relative" style={{ opacity: settings.window_opacity }}>
-      {/* 顶栏: 搜索框 + 设置按钮 */}
       <WindowDragHandler>
         <div className="flex items-center gap-2 px-4 py-3" style={{ backgroundColor: colors.bgSecondary }}>
           <svg className="w-4 h-4 flex-shrink-0" style={{ color: colors.textMuted }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -480,30 +234,23 @@ function App() {
             ref={inputRef}
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={handleInputKeyDown}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="搜索..."
             className="flex-1 bg-transparent text-sm outline-none placeholder-gray-500 no-drag"
             style={{ color: colors.text }}
           />
           {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="no-drag p-1 rounded hover:bg-white/10"
-              style={{ color: colors.textMuted }}
-            >
+            <button onClick={() => setSearchQuery('')} className="no-drag p-1 rounded hover:bg-white/10" style={{ color: colors.textMuted }}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           )}
           <button
-            onClick={() => {
-              setShowExtensions(false)
-              setShowSettings(!showSettings)
-            }}
+            onClick={() => invoke('open_settings_file').catch(() => {})}
             className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag"
-            title="设置"
+            title="编辑配置文件 (Cmd+,)"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -513,43 +260,16 @@ function App() {
         </div>
       </WindowDragHandler>
 
-      {/* 设置界面 (模态框) */}
-      {showSettings && (
-        <SettingsDialog
-          settings={settings}
-          recordingHotkey={recordingHotkey}
-          onClose={() => setShowSettings(false)}
-          onUpdateSettings={updateSettings}
-          onSaveSettings={saveSettings}
-          onStartRecordingHotkey={() => setRecordingHotkey(true)}
-        />
-      )}
-
-      {/* 扩展选择器 */}
       {showExtensions && (
         <ExtensionSelector
           extensions={settings.extensions}
           selectedItem={filteredItems.find(i => i.id === selectedId) || null}
-          onClose={() => {
-            setShowExtensions(false)
-            setTimeout(() => inputRef.current?.focus(), 50)
-          }}
-          onCloseWindow={() => {
-            setShowExtensions(false)
-            setSearchQuery('')
-            invoke('hide_window').catch(() => {})
-          }}
+          onClose={() => setShowExtensions(false)}
+          onCloseWindow={() => { setShowExtensions(false); setSearchQuery(''); invoke('hide_window').catch(() => {}) }}
         />
       )}
 
-      {/* 历史列表 */}
-      <ul
-        ref={listRef}
-        className="flex-1 overflow-y-auto scrollbar-thin"
-        style={{ backgroundColor: colors.bg }}
-        onKeyDown={handleKeyDown}
-        tabIndex={0}
-      >
+      <ul ref={listRef} className="flex-1 overflow-y-auto scrollbar-thin" style={{ backgroundColor: colors.bg }} onKeyDown={handleKeyDown} tabIndex={0}>
         {filteredItems.map((item, index) => (
           <ClipboardListItem
             key={item.id}
@@ -564,15 +284,7 @@ function App() {
         {filteredItems.length === 0 && <EmptyState hasSearchQuery={searchQuery.length > 0} />}
       </ul>
 
-      {/* 状态栏 */}
-      <StatusBar
-        totalCount={items.length}
-        filteredCount={filteredItems.length}
-        hasSearchQuery={searchQuery.length > 0}
-        isDarwin={isDarwin}
-      />
-
-      {/* 调整大小手柄 */}
+      <StatusBar totalCount={items.length} filteredCount={filteredItems.length} hasSearchQuery={searchQuery.length > 0} isDarwin={isDarwin} />
       <ResizeHandle />
     </div>
   )

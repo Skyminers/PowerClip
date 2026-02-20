@@ -149,6 +149,9 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
     )?;
     drop(guard);
 
+    // Start settings file watcher
+    app_settings::start_settings_watcher(app.handle().clone())?;
+
     // Window behavior
     window::setup_window_behavior(app)?;
     window::setup_window_transparency(app)?;
@@ -176,6 +179,8 @@ async fn main() {
             commands::settings::get_settings,
             commands::settings::save_settings,
             commands::settings::set_settings_dialog_open,
+            commands::settings::get_settings_path,
+            commands::settings::open_settings_file,
             window::commands::save_window_state,
             window::commands::get_window_state,
             window::commands::move_window,
