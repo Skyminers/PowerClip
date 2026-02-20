@@ -1,6 +1,7 @@
 //! Window module - Window management and setup
 
 pub mod commands;
+pub mod config;
 
 #[cfg(target_os = "macos")]
 pub mod macos;
@@ -8,7 +9,7 @@ pub mod macos;
 use std::sync::Mutex;
 
 use crate::logger;
-use crate::window_config::WindowConfig;
+use crate::window::config::WindowConfig;
 
 static PREVIOUS_APP_BUNDLE_ID: Mutex<Option<String>> = Mutex::new(None);
 
@@ -62,7 +63,7 @@ pub fn setup_window_behavior(app: &tauri::App) -> Result<(), String> {
     };
 
     // Hide window when it loses focus (unless settings dialog is open)
-    let win_clone = window.clone();
+    let blur_window = window.clone();
     let app_handle = app.handle().clone();
     window.on_window_event(move |event| {
         if let tauri::WindowEvent::Focused(false) = event {
@@ -73,34 +74,34 @@ pub fn setup_window_behavior(app: &tauri::App) -> Result<(), String> {
                     }
                 }
             }
-            let _ = win_clone.hide();
+            let _ = blur_window.hide();
         }
     });
 
     // Save window geometry on move/resize
-    let win_clone2 = window.clone();
+    let geometry_window = window.clone();
     window.on_window_event(move |event| {
         match event {
             tauri::WindowEvent::Moved(position) => {
-                if let Ok(size) = win_clone2.outer_size() {
+                if let Ok(size) = geometry_window.outer_size() {
                     let config = WindowConfig {
                         x: position.x,
                         y: position.y,
                         width: size.width,
                         height: size.height,
                     };
-                    let _ = crate::window_config::save_window_config(&config);
+                    let _ = crate::window::config::save_window_config(&config);
                 }
             }
             tauri::WindowEvent::Resized(size) => {
-                if let Ok(position) = win_clone2.outer_position() {
+                if let Ok(position) = geometry_window.outer_position() {
                     let config = WindowConfig {
                         x: position.x,
                         y: position.y,
                         width: size.width,
                         height: size.height,
                     };
-                    let _ = crate::window_config::save_window_config(&config);
+                    let _ = crate::window::config::save_window_config(&config);
                 }
             }
             _ => {}
@@ -127,6 +128,5 @@ pub fn setup_window_transparency(app: &tauri::App) -> Result<(), String> {
         let _ = window.eval("document.documentElement.style.backgroundColor = 'transparent';");
     }
 
-    let _ = &window;
     Ok(())
 }

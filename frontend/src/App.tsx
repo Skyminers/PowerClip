@@ -4,8 +4,10 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import type { ClipboardItem, Settings } from './types'
+import type { ClipboardItem, Settings, ImageCache } from './types'
 import { theme } from './theme'
+import { MAX_HISTORY_FETCH, FOCUS_DELAY_MS } from './constants'
+import { isDarwin } from './utils/platform'
 
 import {
   ResizeHandle,
@@ -17,10 +19,8 @@ import {
 } from './components'
 
 const colors = theme.colors
-type ImageCache = Record<string, string>
 
 function App() {
-  const isDarwin = navigator.platform.toLowerCase().includes('mac')
 
   // 状态
   const [items, setItems] = useState<ClipboardItem[]>([])
@@ -68,13 +68,9 @@ function App() {
 
   // 加载设置
   const loadSettings = useCallback(() => {
-    console.info('[PowerClip] >>> loadSettings called')
     invoke<Settings>('get_settings')
-      .then(s => {
-        console.info('[PowerClip] >>> Settings loaded:', s.window_opacity, s.hotkey_modifiers, s.hotkey_key)
-        setSettings(s)
-      })
-      .catch(e => console.error('[PowerClip] >>> Failed to load settings:', e))
+      .then(s => setSettings(s))
+      .catch(e => console.error('[PowerClip] Failed to load settings:', e))
   }, [])
 
   // 全局键盘事件
@@ -144,7 +140,7 @@ function App() {
   // 加载历史
   const loadHistory = useCallback(async () => {
     try {
-      const result = await invoke<ClipboardItem[]>('get_history', { limit: 10000 })
+      const result = await invoke<ClipboardItem[]>('get_history', { limit: MAX_HISTORY_FETCH })
       setItems(result)
 
       // 异步加载图片，不阻塞
@@ -188,12 +184,8 @@ function App() {
 
   // 监听配置文件变化
   useEffect(() => {
-    const handler = () => {
-      console.info('[PowerClip] >>> settings-changed event received in App')
-      loadSettings()
-    }
+    const handler = () => loadSettings()
     window.addEventListener('powerclip:settings-changed', handler)
-    console.info('[PowerClip] >>> settings-changed listener registered')
     return () => window.removeEventListener('powerclip:settings-changed', handler)
   }, [loadSettings])
 
@@ -203,7 +195,7 @@ function App() {
       setShowExtensions(false)
       loadHistory().then(() => {
         if (listRef.current) listRef.current.scrollTop = 0
-        setTimeout(() => inputRef.current?.focus(), 50)
+        setTimeout(() => inputRef.current?.focus(), FOCUS_DELAY_MS)
       })
     }
     window.addEventListener('powerclip:window-shown', handler)
@@ -219,7 +211,7 @@ function App() {
 
   // 初始焦点
   useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 50)
+    const t = setTimeout(() => inputRef.current?.focus(), FOCUS_DELAY_MS)
     return () => clearTimeout(t)
   }, [])
 

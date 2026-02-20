@@ -11,7 +11,6 @@ mod db;
 mod hotkey;
 mod monitor;
 mod window;
-mod window_config;
 mod app_settings;
 
 pub use db::DatabaseState;
@@ -28,7 +27,7 @@ use tauri::{
     Position, PhysicalPosition,
 };
 
-use crate::config::{data_dir, APP_NAME};
+use crate::config::APP_NAME;
 
 /// Tracks whether the settings dialog is open (prevents hide-on-blur).
 #[derive(Clone)]
@@ -100,7 +99,7 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
     config::ensure_dirs();
 
     // Database
-    let conn = DatabaseState::new(data_dir()).map_err(|e| e.to_string())?;
+    let conn = DatabaseState::new().map_err(|e| e.to_string())?;
     app.manage(conn);
 
     // App state
@@ -130,7 +129,7 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
 
     // Restore window geometry
     let window = app.get_webview_window("main").unwrap();
-    if let Ok(config) = window_config::load_window_config() {
+    if let Ok(config) = window::config::load_window_config() {
         let _ = window.set_size(Size::Physical(PhysicalSize::new(config.width, config.height)));
         let _ = window.set_position(Position::Physical(PhysicalPosition::new(config.x, config.y)));
     }

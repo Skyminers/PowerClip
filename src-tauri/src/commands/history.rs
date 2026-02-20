@@ -6,25 +6,11 @@ use image::{ImageFormat, RgbaImage};
 use tauri::{Emitter, Manager};
 
 use crate::clipboard::ClipboardContent;
-use crate::db::{self, ClipboardItem as DbClipboardItem};
+use crate::db::{self, ClipboardItem};
 use crate::config::{data_dir, images_dir};
 use crate::{clipboard, logger, app_settings};
 
-use super::ClipboardItem;
 use super::image::IMAGE_CACHE;
-
-/// Convert database item to API item.
-impl From<DbClipboardItem> for ClipboardItem {
-    fn from(item: DbClipboardItem) -> Self {
-        Self {
-            id: item.id,
-            item_type: item.item_type,
-            content: item.content,
-            hash: item.hash,
-            created_at: item.created_at,
-        }
-    }
-}
 
 /// Get clipboard history.
 #[tauri::command]
@@ -33,8 +19,7 @@ pub async fn get_history(
     limit: i64,
 ) -> Result<Vec<ClipboardItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let items = db::get_history(&conn, limit).map_err(|e| e.to_string())?;
-    Ok(items.into_iter().map(ClipboardItem::from).collect())
+    db::get_history(&conn, limit).map_err(|e| e.to_string())
 }
 
 /// Copy a history item back to the system clipboard.
@@ -79,7 +64,7 @@ pub async fn check_clipboard(app: tauri::AppHandle) -> Result<(), String> {
     let state = app.state::<crate::DatabaseState>();
     let conn = state.conn.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
 
-    let new_item = match content {
+    let saved_item = match content {
         ClipboardContent::Text(text) => {
             let hash = db::calculate_hash(text.as_bytes());
             db::save_item(&conn, "text", &text, &hash).map_err(|e| e.to_string())?
@@ -107,7 +92,7 @@ pub async fn check_clipboard(app: tauri::AppHandle) -> Result<(), String> {
         }
     };
 
-    if let Some(item) = new_item {
+    if let Some(item) = saved_item {
         app.emit_to("main", "powerclip:new-item", &item).ok();
 
         let settings = app_settings::load_settings().unwrap_or_default();

@@ -1,10 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import App from './App'
-import { LogLevel, LogEntry, PowerClipLogger } from './types'
+import { initLogger } from './utils/logger'
 import './index.css'
+
+// Initialize logging system
+initLogger()
 
 // ============== Tauri Event Listener ==============
 // Set up window shown listener at app startup (before React mounts)
@@ -23,86 +25,10 @@ listen<any>('powerclip:new-item', (event) => {
 
 // Set up settings-changed listener
 listen('powerclip:settings-changed', () => {
-  console.info('[PowerClip] >>> Received settings-changed from backend')
   window.dispatchEvent(new CustomEvent('powerclip:settings-changed'))
-  console.info('[PowerClip] >>> Dispatched settings-changed to window')
 }).catch(err => {
   console.error('[PowerClip] Failed to set up settings-changed listener:', err)
 })
-
-// ============== Logging System ==============
-const LOG_LEVELS: Record<LogLevel, number> = {
-  DEBUG: 0,
-  INFO: 1,
-  WARNING: 2,
-  ERROR: 3,
-}
-
-const currentLevel: LogLevel = import.meta.env.DEV ? 'DEBUG' : 'INFO'
-
-const logs: LogEntry[] = []
-
-function getTimestamp(): string {
-  const now = new Date()
-  return now.toISOString().replace('T', ' ').slice(0, 23)
-}
-
-function formatLog(entry: LogEntry): string {
-  return `[${entry.timestamp}] [${entry.level}] [${entry.module}] ${entry.message}`
-}
-
-function log(level: LogLevel, module: string, message: string): void {
-  if (LOG_LEVELS[level] < LOG_LEVELS[currentLevel]) {
-    return
-  }
-
-  const entry: LogEntry = {
-    timestamp: getTimestamp(),
-    level,
-    module,
-    message,
-  }
-
-  logs.push(entry)
-
-  // Keep only last 1000 logs in memory
-  if (logs.length > 1000) {
-    logs.shift()
-  }
-
-  // Output to console
-  const formatted = formatLog(entry)
-  switch (level) {
-    case 'DEBUG':
-      console.debug(formatted)
-      break
-    case 'INFO':
-      console.info(formatted)
-      break
-    case 'WARNING':
-      console.warn(formatted)
-      break
-    case 'ERROR':
-      console.error(formatted)
-      break
-  }
-}
-
-// Logger API
-declare global {
-  interface Window {
-    powerclipLogger: PowerClipLogger
-  }
-}
-
-window.powerclipLogger = {
-  debug: (module: string, message: string) => log('DEBUG', module, message),
-  info: (module: string, message: string) => log('INFO', module, message),
-  warning: (module: string, message: string) => log('WARNING', module, message),
-  error: (module: string, message: string) => log('ERROR', module, message),
-  getLogs: () => [...logs],
-  clearLogs: () => { logs.length = 0 },
-}
 
 // ============== Application ==============
 
@@ -118,25 +44,3 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <App />
   </React.StrictMode>,
 )
-
-// Keyboard shortcut listener
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    e.preventDefault()
-    // Hide window and release focus
-    invoke('hide_window').catch(() => {})
-  }
-})
-
-// Clipboard check function - called by Rust backend monitor thread
-(window as any).__powerclip_check_clipboard = async () => {
-  try {
-    // Invoke Rust command to check clipboard
-    await invoke('check_clipboard')
-  } catch (e) {
-    // Ignore errors - clipboard might be empty or inaccessible
-  }
-}
-
-// Log application startup
-console.info('[PowerClip] Frontend initialized')

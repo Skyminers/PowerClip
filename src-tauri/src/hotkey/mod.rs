@@ -142,9 +142,9 @@ pub fn register_hotkey_with_settings(
     modifiers: &str,
     key: &str,
 ) -> Result<(), String> {
-    let modifiers_parsed = parse_modifiers(modifiers);
+    let parsed_modifiers = parse_modifiers(modifiers);
     let key_code = parse_key_code(key).ok_or_else(|| format!("Invalid key code: {}", key))?;
-    let hotkey = HotKey::new(Some(modifiers_parsed), key_code);
+    let hotkey = HotKey::new(Some(parsed_modifiers), key_code);
 
     logger::info("Hotkey", &format!("Registering hotkey: {}+{}", modifiers, key));
 

@@ -3,6 +3,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import { WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT, WINDOW_MAX_WIDTH, WINDOW_MAX_HEIGHT } from '../constants'
 
 export function ResizeHandle() {
   const handleMouseDown = async (e: React.MouseEvent) => {
@@ -19,8 +20,8 @@ export function ResizeHandle() {
       const onMouseMove = async (moveEvent: MouseEvent) => {
         const newWidth = startWidth + (moveEvent.clientX - startX)
         const newHeight = startHeight + (moveEvent.clientY - startY)
-        const clampedWidth = Math.max(300, Math.min(800, newWidth))
-        const clampedHeight = Math.max(200, Math.min(600, newHeight))
+        const clampedWidth = Math.max(WINDOW_MIN_WIDTH, Math.min(WINDOW_MAX_WIDTH, newWidth))
+        const clampedHeight = Math.max(WINDOW_MIN_HEIGHT, Math.min(WINDOW_MAX_HEIGHT, newHeight))
         await invoke('resize_window', { width: clampedWidth, height: clampedHeight })
       }
 

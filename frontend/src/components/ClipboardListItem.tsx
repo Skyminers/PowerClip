@@ -2,13 +2,14 @@
  * 剪贴板列表项组件
  */
 
-import type { ClipboardItem } from '../types'
+import type { ClipboardItem, ImageCache } from '../types'
 import { theme } from '../theme'
 import { formatContent, formatTime, getPreview } from '../utils/helpers'
+import { isDarwin } from '../utils/platform'
+import { MAX_SHORTCUT_INDEX } from '../constants'
 import { IconDocument, IconImage } from './icons'
 
 const colors = theme.colors
-type ImageCache = Record<string, string>
 
 export function ClipboardListItem({
   item,
@@ -25,8 +26,6 @@ export function ClipboardListItem({
   onSelect: (id: number) => void
   onCopy: (item: ClipboardItem) => void
 }) {
-  const isDarwin = navigator.platform.toLowerCase().includes('mac')
-
   return (
     <li
       data-id={item.id}
@@ -76,7 +75,7 @@ export function ClipboardListItem({
 
         {/* 元数据区域 */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {index < 9 && (
+          {index < MAX_SHORTCUT_INDEX && (
             <span
               className="text-xs px-1.5 py-0.5 rounded"
               style={{

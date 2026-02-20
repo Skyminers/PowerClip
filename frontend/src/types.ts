@@ -1,3 +1,7 @@
+export type LogLevel = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR'
+
+export type ImageCache = Record<string, string>
+
 export interface ClipboardItem {
   id: number;
   item_type: string;
@@ -25,7 +29,7 @@ export interface Settings {
 
 export interface LogEntry {
   timestamp: string;
-  level: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
+  level: LogLevel;
   module: string;
   message: string;
 }

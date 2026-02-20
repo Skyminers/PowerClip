@@ -23,12 +23,10 @@ export function WindowDragHandler({ children }: { children: React.ReactNode }) {
       return
     }
 
-    console.log('[Drag] Mouse down, starting drag')
     try {
       await getCurrentWindow().startDragging()
-      console.log('[Drag] Drag started successfully')
-    } catch (error) {
-      console.error('[Drag] Failed to start dragging:', error)
+    } catch {
+      // Drag may fail if window is not focused
     }
   }
 

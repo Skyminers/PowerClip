@@ -1,6 +1,6 @@
 //! Window commands - Tauri command handlers for window operations
 
-use crate::window_config::WindowConfig;
+use crate::window::config::WindowConfig;
 
 /// Save current window position and size.
 #[tauri::command]
@@ -15,7 +15,7 @@ pub async fn save_window_state(window: tauri::WebviewWindow) -> Result<(), Strin
         height: size.height,
     };
 
-    crate::window_config::save_window_config(&config)
+    crate::window::config::save_window_config(&config)
 }
 
 /// Get current window configuration.

@@ -1,13 +1,13 @@
 //! Database module - SQLite operations for clipboard history
 
 use rusqlite::Connection;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::config::db_path;
 use crate::logger;
 
 /// Clipboard history item stored in database.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClipboardItem {
     pub id: i64,
     pub item_type: String,
@@ -23,7 +23,7 @@ pub struct DatabaseState {
 }
 
 impl DatabaseState {
-    pub fn new(_data_dir: &std::path::PathBuf) -> Result<Self, rusqlite::Error> {
+    pub fn new() -> Result<Self, rusqlite::Error> {
         let db = db_path();
         let conn = Connection::open(&db)?;
 
@@ -137,23 +137,32 @@ pub fn cleanup_old_items(conn: &Connection, max_items: i64) -> Result<i64, rusql
 
     let to_delete = count - max_items;
 
-    let mut stmt = conn.prepare("SELECT id, type, content FROM history ORDER BY created_at ASC LIMIT ?")?;
-    let items_to_delete: Vec<(i64, String, String)> = stmt
-        .query_map([to_delete], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+    // Collect image paths to clean up before batch deletion
+    let mut stmt = conn.prepare("SELECT type, content FROM history ORDER BY created_at ASC LIMIT ?")?;
+    let image_paths: Vec<String> = stmt
+        .query_map([to_delete], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
         .into_iter()
         .flatten()
         .filter_map(|r| r.ok())
+        .filter_map(|(item_type, content)| {
+            if item_type == "image" {
+                content.strip_prefix("images/").map(|f| f.to_string())
+            } else {
+                None
+            }
+        })
         .collect();
 
-    for (id, item_type, content) in items_to_delete {
-        conn.execute("DELETE FROM history WHERE id = ?", [id])?;
+    // Batch delete in a single SQL statement
+    conn.execute(
+        "DELETE FROM history WHERE id IN (SELECT id FROM history ORDER BY created_at ASC LIMIT ?)",
+        [to_delete],
+    )?;
 
-        if item_type == "image" {
-            if let Some(filename) = content.strip_prefix("images/") {
-                let image_path = crate::config::images_dir().join(filename);
-                let _ = std::fs::remove_file(image_path);
-            }
-        }
+    // Clean up image files
+    for filename in image_paths {
+        let image_path = crate::config::images_dir().join(&filename);
+        let _ = std::fs::remove_file(image_path);
     }
 
     Ok(to_delete)
