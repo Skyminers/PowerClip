@@ -12,6 +12,7 @@ mod hotkey;
 mod monitor;
 mod window;
 mod app_settings;
+mod semantic;
 
 pub use db::DatabaseState;
 pub use hotkey::HotkeyState;
@@ -148,8 +149,64 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
     )?;
     drop(guard);
 
+    // Initialize semantic enabled tracker before starting settings watcher
+    app_settings::init_semantic_tracker(settings.semantic_search_enabled);
+
     // Start settings file watcher
     app_settings::start_settings_watcher(app.handle().clone())?;
+
+    // Semantic search state (always initialized, runtime-controlled by settings)
+    {
+        let semantic_state = semantic::SemanticState::new();
+
+        // Sync enabled state from settings
+        if let Ok(mut status) = semantic_state.status.write() {
+            status.enabled = settings.semantic_search_enabled;
+        }
+
+        // Update text count and load existing embeddings
+        if let Some(db_state) = app.try_state::<DatabaseState>() {
+            if let Ok(conn) = db_state.conn.lock() {
+                semantic_state.update_text_count(&conn);
+
+                // Load existing embeddings into memory if semantic is enabled
+                if settings.semantic_search_enabled {
+                    let mut index = semantic_state.index.write().unwrap();
+                    match semantic::db::load_embeddings_into_index(&conn, &mut index) {
+                        Ok(count) => {
+                            logger::info("Main", &format!("Loaded {} embeddings into memory", count));
+                            if let Ok(mut status) = semantic_state.status.write() {
+                                status.indexed_count = count;
+                            }
+                        }
+                        Err(e) => {
+                            logger::error("Main", &format!("Failed to load embeddings: {}", e));
+                        }
+                    }
+                }
+            }
+        }
+
+        app.manage(semantic_state.clone());
+
+        logger::info("Main", &format!(
+            "Semantic search initialized (enabled={})",
+            settings.semantic_search_enabled
+        ));
+
+        // If semantic is enabled and model is downloaded, start bulk indexing for unindexed items
+        if settings.semantic_search_enabled {
+            let model_path = config::models_dir().join(config::SEMANTIC_MODEL_FILENAME);
+            if model_path.exists() {
+                let app_handle = app.handle().clone();
+                // Delay indexing slightly to let the app finish initializing
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    semantic::embedding::index_all_items(app_handle);
+                });
+            }
+        }
+    }
 
     // Window behavior
     window::setup_window_behavior(app)?;
@@ -186,6 +243,15 @@ async fn main() {
             window::commands::resize_window,
             window::commands::hide_window,
             commands::extensions::run_extension,
+            semantic::commands::get_semantic_status,
+            semantic::commands::download_model,
+            semantic::commands::cancel_model_download,
+            semantic::commands::get_manual_download_info,
+            semantic::commands::semantic_search,
+            semantic::commands::set_semantic_enabled,
+            semantic::commands::rebuild_semantic_index,
+            semantic::commands::start_bulk_indexing,
+            semantic::commands::full_rebuild_index,
         ])
         .run(tauri::generate_context!())
         .expect("Fatal error while running tauri application");

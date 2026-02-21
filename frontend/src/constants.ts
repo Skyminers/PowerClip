@@ -8,6 +8,7 @@ export const MAX_HISTORY_FETCH = 10000
 
 // UI timing
 export const FOCUS_DELAY_MS = 50
+export const SEMANTIC_SEARCH_DEBOUNCE_MS = 300
 
 // Shortcut keys (1-9)
 export const MAX_SHORTCUT_INDEX = 9

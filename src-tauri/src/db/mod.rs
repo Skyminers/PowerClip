@@ -41,6 +41,17 @@ impl DatabaseState {
         conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON history(created_at)", ())?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_hash ON history(hash)", ())?;
 
+        // Semantic search embeddings table
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS embeddings (
+                item_id INTEGER PRIMARY KEY REFERENCES history(id) ON DELETE CASCADE,
+                embedding BLOB NOT NULL,
+                dim INTEGER NOT NULL DEFAULT 256
+            )",
+            (),
+        )?;
+        conn.execute("PRAGMA foreign_keys = ON", ())?;
+
         logger::info("Database", &format!("Initialized at {:?}", db));
 
         Ok(Self {

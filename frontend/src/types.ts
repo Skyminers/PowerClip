@@ -25,6 +25,24 @@ export interface Settings {
   window_opacity: number;
   auto_paste_enabled: boolean;
   extensions: Extension[];
+  semantic_search_enabled: boolean;
+}
+
+/// Status of the semantic search feature
+export interface SemanticStatus {
+  model_downloaded: boolean;
+  model_loaded: boolean;
+  download_progress: number | null;
+  indexed_count: number;
+  total_text_count: number;
+  indexing_in_progress: boolean;
+  enabled: boolean;
+}
+
+/// Result item from semantic search
+export interface SemanticSearchResult {
+  item: ClipboardItem;
+  score: number;
 }
 
 export interface LogEntry {

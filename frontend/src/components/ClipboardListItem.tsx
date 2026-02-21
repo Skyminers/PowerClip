@@ -2,20 +2,30 @@
  * 剪贴板列表项组件
  */
 
+import { memo } from 'react'
 import type { ClipboardItem, ImageCache } from '../types'
 import { theme } from '../theme'
 import { formatContent, formatTime, getPreview } from '../utils/helpers'
-import { isDarwin } from '../utils/platform'
 import { MAX_SHORTCUT_INDEX } from '../constants'
 import { IconDocument, IconImage } from './icons'
 
 const colors = theme.colors
 
-export function ClipboardListItem({
+/**
+ * 格式化相似度分数为百分比
+ * @param score 0.0 - 1.0 的相似度分数
+ * @returns 0.00% - 100.00% 格式的字符串
+ */
+function formatScore(score: number): string {
+  return (score * 100).toFixed(2) + '%'
+}
+
+export const ClipboardListItem = memo(function ClipboardListItem({
   item,
   index,
   isSelected,
   imageCache,
+  semanticScore,
   onSelect,
   onCopy
 }: {
@@ -23,6 +33,7 @@ export function ClipboardListItem({
   index: number
   isSelected: boolean
   imageCache: ImageCache
+  semanticScore?: number  // AI 搜索相似度分数 (0.0 - 1.0)
   onSelect: (id: number) => void
   onCopy: (item: ClipboardItem) => void
 }) {
@@ -75,15 +86,28 @@ export function ClipboardListItem({
 
         {/* 元数据区域 */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* AI 搜索相似度分数 */}
+          {semanticScore !== undefined && (
+            <span
+              className="text-xs px-1.5 py-0.5 rounded font-mono"
+              style={{
+                backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.15)',
+                color: isSelected ? '#fff' : colors.accent
+              }}
+              title={`语义相似度: ${formatScore(semanticScore)}`}
+            >
+              {formatScore(semanticScore)}
+            </span>
+          )}
           {index < MAX_SHORTCUT_INDEX && (
             <span
-              className="text-xs px-1.5 py-0.5 rounded"
+              className="text-xs px-1.5 py-0.5 rounded font-mono"
               style={{
                 backgroundColor: isSelected ? 'rgba(255,255,255,0.15)' : colors.bgSecondary,
                 color: isSelected ? colors.text : colors.textMuted
               }}
             >
-              {isDarwin ? '⌘' : 'Ctrl'}{index + 1}
+              {index + 1}
             </span>
           )}
           <span className="text-xs" style={{ color: colors.textMuted }}>
@@ -93,4 +117,4 @@ export function ClipboardListItem({
       </div>
     </li>
   )
-}
+})

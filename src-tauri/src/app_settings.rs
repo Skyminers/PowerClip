@@ -3,11 +3,15 @@
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::{Emitter, Manager};
 
 use crate::config::settings_path;
 use crate::logger;
+
+/// Track previous semantic search enabled state to detect changes
+static PREV_SEMANTIC_ENABLED: AtomicBool = AtomicBool::new(false);
 
 /// A user-configured extension that processes clipboard content via an external command.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -29,6 +33,8 @@ pub struct AppSettings {
     pub auto_paste_enabled: bool,
     #[serde(default)]
     pub extensions: Vec<Extension>,
+    #[serde(default)]
+    pub semantic_search_enabled: bool,
 }
 
 impl Default for AppSettings {
@@ -45,6 +51,7 @@ impl Default for AppSettings {
             window_opacity: 0.95,
             auto_paste_enabled: false,
             extensions: vec![],
+            semantic_search_enabled: false,
         }
     }
 }
@@ -90,6 +97,12 @@ fn initial_settings_content() -> String {
 
   // Auto-paste after selecting an item
   "auto_paste_enabled": false,
+
+  // ---- AI 语义搜索 ----
+  // 启用后可使用自然语言搜索剪贴板内容（例如搜索"昨天复制的网址"）
+  // 首次启用需要下载 EmbeddingGemma 模型（约 236MB），模型完全本地运行
+  // 开启后点击搜索栏旁的 AI 按钮，按引导完成设置
+  "semantic_search_enabled": false,
 
   // Extensions (press Tab on selected item to trigger)
   // - name: Display name in extension selector
@@ -160,6 +173,20 @@ pub fn load_settings() -> Result<AppSettings, String> {
     Ok(settings)
 }
 
+/// Initialize the semantic enabled state tracker.
+/// Call this at startup with the initial settings value.
+pub fn init_semantic_tracker(enabled: bool) {
+    PREV_SEMANTIC_ENABLED.store(enabled, Ordering::SeqCst);
+}
+
+/// Check if semantic search was just enabled (transitioned from false to true).
+/// Returns true if the value changed from false to true.
+fn check_semantic_enabled_transition(new_enabled: bool) -> bool {
+    let prev = PREV_SEMANTIC_ENABLED.swap(new_enabled, Ordering::SeqCst);
+    // Transition from false to true
+    !prev && new_enabled
+}
+
 /// Start watching the settings file for changes.
 pub fn start_settings_watcher(app_handle: tauri::AppHandle) -> Result<(), String> {
     let path = settings_path();
@@ -207,6 +234,35 @@ pub fn start_settings_watcher(app_handle: tauri::AppHandle) -> Result<(), String
                                                 &settings.hotkey_modifiers,
                                                 &settings.hotkey_key,
                                             );
+                                        }
+                                    }
+                                }
+
+                                // Sync semantic search enabled state
+                                if let Some(sem_state) = app.try_state::<crate::semantic::SemanticState>() {
+                                    if let Ok(mut status) = sem_state.status.write() {
+                                        status.enabled = settings.semantic_search_enabled;
+                                    }
+
+                                    // Check if semantic search was just enabled
+                                    if check_semantic_enabled_transition(settings.semantic_search_enabled) {
+                                        logger::info("Settings", "Semantic search enabled, triggering bulk indexing...");
+
+                                        // Check if model is downloaded
+                                        let model_exists = crate::config::models_dir()
+                                            .join(crate::config::SEMANTIC_MODEL_FILENAME)
+                                            .exists();
+
+                                        if model_exists {
+                                            // Trigger bulk indexing in background
+                                            let app_clone = app.clone();
+                                            std::thread::spawn(move || {
+                                                // Small delay to let the settings update propagate
+                                                std::thread::sleep(std::time::Duration::from_millis(500));
+                                                crate::semantic::embedding::index_all_items(app_clone);
+                                            });
+                                        } else {
+                                            logger::info("Settings", "Model not downloaded yet, skipping bulk indexing");
                                         }
                                     }
                                 }

@@ -95,6 +95,20 @@ pub async fn check_clipboard(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(item) = saved_item {
         app.emit_to("main", "powerclip:new-item", &item).ok();
 
+        // Index for semantic search (runtime-controlled)
+        if item.item_type == "text" {
+            if app.try_state::<crate::semantic::SemanticState>().is_some() {
+                let app = app.clone();
+                let id = item.id;
+                let content = item.content.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = tokio::task::spawn_blocking(move || {
+                        crate::semantic::embedding::index_single_item(&app, id, &content);
+                    }).await;
+                });
+            }
+        }
+
         let settings = app_settings::load_settings().unwrap_or_default();
         if settings.auto_cleanup_enabled && settings.max_items > 0 {
             if let Ok(deleted) = db::cleanup_old_items(&conn, settings.max_items) {

@@ -11,22 +11,25 @@ export function StatusBar({
   totalCount,
   filteredCount,
   hasSearchQuery,
-  isDarwin
+  isDarwin,
+  semanticMode = false,
 }: {
   totalCount: number
   filteredCount: number
   hasSearchQuery: boolean
   isDarwin: boolean
+  semanticMode?: boolean
 }) {
   return (
     <div className="flex items-center justify-between px-4 py-2 text-xs" style={{ backgroundColor: colors.bgSecondary }}>
       <div className="flex items-center gap-4" style={{ color: colors.textMuted }}>
         <span>{filteredCount} / {totalCount} 条</span>
-        {hasSearchQuery && <span style={{ color: colors.accent }}>筛选模式</span>}
+        {semanticMode && <span style={{ color: colors.accent }}>AI搜索</span>}
+        {!semanticMode && hasSearchQuery && <span style={{ color: colors.accent }}>筛选模式</span>}
       </div>
       <div className="flex items-center gap-4" style={{ color: colors.textMuted }}>
         <span className="flex items-center gap-1.5">
-          <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>/</kbd>搜索
+          <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>1-9</kbd>快速复制
         </span>
         <span className="flex items-center gap-1.5">
           <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>Esc</kbd>关闭

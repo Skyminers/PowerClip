@@ -171,7 +171,12 @@ pub fn register_hotkey_with_settings(
         let win = window.clone();
         GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
             let active_id = ACTIVE_HOTKEY_ID.load(Ordering::SeqCst);
-            if event.id == active_id && event.state == HotKeyState::Released {
+            logger::debug("Hotkey", &format!(
+                "Event received: id={}, active_id={}, state={:?}",
+                event.id, active_id, event.state
+            ));
+            if event.id == active_id && event.state == HotKeyState::Pressed {
+                logger::info("Hotkey", "Hotkey triggered, showing window");
                 let app_handle = win.app_handle();
                 let _ = crate::window::show_and_notify(app_handle, &win);
             }

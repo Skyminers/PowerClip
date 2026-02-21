@@ -4,10 +4,11 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import type { ClipboardItem, Settings, ImageCache } from './types'
+import type { ClipboardItem, Settings, ImageCache, SemanticStatus } from './types'
 import { theme } from './theme'
 import { MAX_HISTORY_FETCH, FOCUS_DELAY_MS } from './constants'
 import { isDarwin } from './utils/platform'
+import { useSemanticSearch } from './hooks/useSemanticSearch'
 
 import {
   ResizeHandle,
@@ -15,7 +16,8 @@ import {
   EmptyState,
   StatusBar,
   ClipboardListItem,
-  ExtensionSelector
+  ExtensionSelector,
+  SemanticToggle
 } from './components'
 
 const colors = theme.colors
@@ -28,6 +30,8 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [imageCache, setImageCache] = useState<ImageCache>({})
   const [showExtensions, setShowExtensions] = useState(false)
+  const [semanticMode, setSemanticMode] = useState(false)
+  const [semanticStatus, setSemanticStatus] = useState<SemanticStatus | null>(null)
 
   const [settings, setSettings] = useState<Settings>({
     auto_cleanup_enabled: false,
@@ -37,6 +41,7 @@ function App() {
     window_opacity: 0.95,
     auto_paste_enabled: false,
     extensions: [],
+    semantic_search_enabled: false,
   })
 
   const listRef = useRef<HTMLUListElement>(null)
@@ -46,12 +51,30 @@ function App() {
   const showExtensionsRef = useRef(showExtensions)
   showExtensionsRef.current = showExtensions
 
+  // Semantic search hook
+  const { results: semanticResults, loading: semanticLoading, error: semanticError } = useSemanticSearch(
+    semanticMode ? searchQuery : '',
+    50
+  )
+
   // 派生状态
   const searchLower = useMemo(() => searchQuery.toLowerCase(), [searchQuery])
-  const filteredItems = useMemo(() =>
-    items.filter(item => item.content.toLowerCase().includes(searchLower)),
-    [items, searchLower]
-  )
+
+  // Display items based on search mode
+  const filteredItems = useMemo(() => {
+    if (semanticMode && semanticResults.length > 0 && searchQuery.length > 0) {
+      return semanticResults.map(r => r.item)
+    }
+    return items.filter(item => item.content.toLowerCase().includes(searchLower))
+  }, [items, searchLower, semanticMode, semanticResults, searchQuery])
+
+  // Map item id to semantic score for quick lookup
+  const semanticScoreMap = useMemo(() => {
+    if (semanticMode && semanticResults.length > 0) {
+      return new Map(semanticResults.map(r => [r.item.id, r.score]))
+    }
+    return new Map<number, number>()
+  }, [semanticMode, semanticResults])
 
   // 复制项目
   const copyItem = useCallback(async (item: ClipboardItem) => {
@@ -69,9 +92,31 @@ function App() {
   // 加载设置
   const loadSettings = useCallback(() => {
     invoke<Settings>('get_settings')
-      .then(s => setSettings(s))
+      .then(s => {
+        setSettings(s)
+        // Sync semantic enabled state with settings
+        if (s.semantic_search_enabled) {
+          invoke<SemanticStatus>('get_semantic_status')
+            .then(status => setSemanticStatus(status))
+            .catch(() => {})
+        }
+      })
       .catch(e => console.error('[PowerClip] Failed to load settings:', e))
   }, [])
+
+  // Load semantic status
+  const loadSemanticStatus = useCallback(() => {
+    invoke<SemanticStatus>('get_semantic_status')
+      .then(status => setSemanticStatus(status))
+      .catch(() => setSemanticStatus(null))
+  }, [])
+
+  // Handle semantic mode toggle
+  const handleSemanticToggle = useCallback(() => {
+    if (semanticStatus?.model_downloaded && settings.semantic_search_enabled) {
+      setSemanticMode(prev => !prev)
+    }
+  }, [semanticStatus, settings.semantic_search_enabled])
 
   // 全局键盘事件
   useEffect(() => {
@@ -95,7 +140,7 @@ function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [isDarwin])
+  }, [])
 
   // 列表键盘导航
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -156,6 +201,7 @@ function App() {
   useEffect(() => {
     loadSettings()
     loadHistory()
+    loadSemanticStatus()
 
     invoke<{ x: number; y: number }>('get_window_state')
       .then(s => {
@@ -180,7 +226,7 @@ function App() {
     }
     window.addEventListener('powerclip:new-item', onNewItem)
     return () => window.removeEventListener('powerclip:new-item', onNewItem)
-  }, [loadSettings, loadHistory])
+  }, [loadSettings, loadHistory, loadSemanticStatus])
 
   // 监听配置文件变化
   useEffect(() => {
@@ -228,10 +274,21 @@ function App() {
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="搜索..."
+            placeholder={semanticMode ? "语义搜索..." : "搜索..."}
             className="flex-1 bg-transparent text-sm outline-none placeholder-gray-500 no-drag"
             style={{ color: colors.text }}
           />
+          {semanticLoading && (
+            <svg className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: colors.accent }} fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          )}
+          {semanticError && semanticMode && (
+            <span className="text-xs px-2 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: 'rgba(239,68,68,0.2)', color: '#fca5a5' }} title={semanticError}>
+              搜索错误
+            </span>
+          )}
           {searchQuery && (
             <button onClick={() => setSearchQuery('')} className="no-drag p-1 rounded hover:bg-white/10" style={{ color: colors.textMuted }}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -239,6 +296,13 @@ function App() {
               </svg>
             </button>
           )}
+          <SemanticToggle
+            enabled={settings.semantic_search_enabled}
+            active={semanticMode}
+            status={semanticStatus}
+            onToggle={handleSemanticToggle}
+            onRefreshStatus={loadSemanticStatus}
+          />
           <button
             onClick={() => invoke('open_settings_file').catch(() => {})}
             className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag"
@@ -269,14 +333,21 @@ function App() {
             index={index}
             isSelected={selectedId === item.id}
             imageCache={imageCache}
+            semanticScore={semanticScoreMap.get(item.id)}
             onSelect={setSelectedId}
             onCopy={copyItem}
           />
         ))}
-        {filteredItems.length === 0 && <EmptyState hasSearchQuery={searchQuery.length > 0} />}
+        {filteredItems.length === 0 && <EmptyState hasSearchQuery={searchQuery.length > 0} semanticMode={semanticMode} />}
       </ul>
 
-      <StatusBar totalCount={items.length} filteredCount={filteredItems.length} hasSearchQuery={searchQuery.length > 0} isDarwin={isDarwin} />
+      <StatusBar
+        totalCount={items.length}
+        filteredCount={filteredItems.length}
+        hasSearchQuery={searchQuery.length > 0}
+        isDarwin={isDarwin}
+        semanticMode={semanticMode}
+      />
       <ResizeHandle />
     </div>
   )
