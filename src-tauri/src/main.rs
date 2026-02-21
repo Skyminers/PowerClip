@@ -230,6 +230,7 @@ async fn main() {
             commands::history::get_history,
             commands::history::copy_to_clipboard,
             commands::history::check_clipboard,
+            commands::history::delete_history_item,
             commands::image::get_image_asset_url,
             commands::paste::simulate_paste,
             commands::settings::get_settings,

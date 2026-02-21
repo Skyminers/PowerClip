@@ -178,3 +178,44 @@ pub fn cleanup_old_items(conn: &Connection, max_items: i64) -> Result<i64, rusql
 
     Ok(to_delete)
 }
+
+/// Delete a single item by ID.
+///
+/// Also deletes the associated image file if the item is an image.
+/// Returns true if an item was deleted, false if not found.
+pub fn delete_item(conn: &Connection, item_id: i64) -> Result<bool, rusqlite::Error> {
+    // First, get the item to check if it's an image
+    let item_info: Result<(String, String), _> = conn.query_row(
+        "SELECT type, content FROM history WHERE id = ?",
+        [item_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    );
+
+    let deleted = match item_info {
+        Ok((item_type, content)) => {
+            // Delete from database
+            let affected = conn.execute("DELETE FROM history WHERE id = ?", [item_id])?;
+
+            if affected > 0 {
+                // If it was an image, delete the file
+                if item_type == "image" {
+                    if let Some(filename) = content.strip_prefix("images/") {
+                        let image_path = crate::config::images_dir().join(filename);
+                        if let Err(e) = std::fs::remove_file(&image_path) {
+                            logger::warning("Database", &format!("Failed to delete image file: {}", e));
+                        } else {
+                            logger::debug("Database", &format!("Deleted image file: {:?}", image_path));
+                        }
+                    }
+                }
+                true
+            } else {
+                false
+            }
+        }
+        Err(rusqlite::Error::QueryReturnedNoRows) => false,
+        Err(e) => return Err(e),
+    };
+
+    Ok(deleted)
+}

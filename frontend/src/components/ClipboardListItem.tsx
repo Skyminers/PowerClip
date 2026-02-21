@@ -2,7 +2,7 @@
  * 剪贴板列表项组件
  */
 
-import { memo } from 'react'
+import { memo, useState, useCallback } from 'react'
 import type { ClipboardItem, ImageCache } from '../types'
 import { theme } from '../theme'
 import { formatContent, formatTime, getPreview } from '../utils/helpers'
@@ -27,7 +27,8 @@ export const ClipboardListItem = memo(function ClipboardListItem({
   imageCache,
   semanticScore,
   onSelect,
-  onCopy
+  onCopy,
+  onDelete
 }: {
   item: ClipboardItem
   index: number
@@ -36,14 +37,28 @@ export const ClipboardListItem = memo(function ClipboardListItem({
   semanticScore?: number  // AI 搜索相似度分数 (0.0 - 1.0)
   onSelect: (id: number) => void
   onCopy: (item: ClipboardItem) => void
+  onDelete: (id: number) => void
 }) {
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
+
+  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!isDeleting) {
+      setIsDeleting(true)
+      onDelete(item.id)
+    }
+  }, [item.id, isDeleting, onDelete])
+
   return (
     <li
       data-id={item.id}
-      className={`relative px-4 py-3 cursor-pointer transition-all duration-150 fade-in ${isSelected ? 'selected-pulse' : ''}`}
+      className={`relative px-4 py-3 cursor-pointer transition-all duration-150 fade-in ${isSelected ? 'selected-pulse' : ''} ${isDeleting ? 'opacity-50' : ''}`}
       style={{ backgroundColor: isSelected ? colors.selected : 'transparent' }}
-      onClick={() => onSelect(item.id)}
-      onDoubleClick={() => onCopy(item)}
+      onClick={() => !isDeleting && onSelect(item.id)}
+      onDoubleClick={() => !isDeleting && onCopy(item)}
+      onMouseEnter={() => setShowDelete(true)}
+      onMouseLeave={() => setShowDelete(false)}
     >
       <div className="flex items-start justify-between gap-3">
         {/* 内容区域 */}
@@ -86,6 +101,19 @@ export const ClipboardListItem = memo(function ClipboardListItem({
 
         {/* 元数据区域 */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* 删除按钮 */}
+          {showDelete && !isDeleting && (
+            <button
+              onClick={handleDeleteClick}
+              className="p-1 rounded hover:bg-red-500/20 transition-colors"
+              style={{ color: '#ef4444' }}
+              title="删除"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
           {/* AI 搜索相似度分数 */}
           {semanticScore !== undefined && (
             <span

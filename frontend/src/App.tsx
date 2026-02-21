@@ -89,6 +89,21 @@ function App() {
     }
   }, [settings.auto_paste_enabled])
 
+  // 删除项目
+  const deleteItem = useCallback(async (itemId: number) => {
+    try {
+      await invoke('delete_history_item', { itemId })
+      // 从列表中移除
+      setItems(prev => prev.filter(item => item.id !== itemId))
+      // 如果删除的是选中项，清除选中
+      if (selectedId === itemId) {
+        setSelectedId(null)
+      }
+    } catch (error) {
+      console.error('Failed to delete item:', error)
+    }
+  }, [selectedId])
+
   // 加载设置
   const loadSettings = useCallback(() => {
     invoke<Settings>('get_settings')
@@ -336,6 +351,7 @@ function App() {
             semanticScore={semanticScoreMap.get(item.id)}
             onSelect={setSelectedId}
             onCopy={copyItem}
+            onDelete={deleteItem}
           />
         ))}
         {filteredItems.length === 0 && <EmptyState hasSearchQuery={searchQuery.length > 0} semanticMode={semanticMode} />}
