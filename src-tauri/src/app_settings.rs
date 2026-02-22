@@ -98,10 +98,10 @@ fn initial_settings_content() -> String {
   // Auto-paste after selecting an item
   "auto_paste_enabled": false,
 
-  // ---- AI 语义搜索 ----
-  // 启用后可使用自然语言搜索剪贴板内容（例如搜索"昨天复制的网址"）
-  // 首次启用需要下载 EmbeddingGemma 模型（约 236MB），模型完全本地运行
-  // 开启后点击搜索栏旁的 AI 按钮，按引导完成设置
+  // ---- AI Semantic Search ----
+  // Enable to search clipboard content using natural language (e.g., "URL copied yesterday")
+  // First-time use requires downloading EmbeddingGemma model (~236MB), runs entirely locally
+  // After enabling, click the AI button next to search bar to complete setup
   "semantic_search_enabled": false,
 
   // Extensions (press Tab on selected item to trigger)
@@ -158,7 +158,7 @@ pub fn load_settings() -> Result<AppSettings, String> {
         // Add default extensions but don't overwrite the file (preserve comments)
         settings.extensions = vec![
             Extension {
-                name: "转为大写".to_string(),
+                name: "To Uppercase".to_string(),
                 command: if cfg!(target_os = "windows") {
                     "powershell -Command \"$input | ForEach-Object { $_.ToUpper() }\"".to_string()
                 } else {

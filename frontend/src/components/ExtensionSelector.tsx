@@ -1,11 +1,11 @@
 /**
- * 扩展选择器组件 - 按 Tab 后弹出的扩展列表
+ * Extension selector component - Shows extension list after pressing Tab
  *
- * 交互规则:
- * - ArrowUp/ArrowDown: 导航
- * - Enter: 执行选中的扩展
- * - Esc / Tab: 关闭扩展列表，回到主界面
- * - 点击背景: 关闭
+ * Interaction rules:
+ * - ArrowUp/ArrowDown: Navigate
+ * - Enter: Execute selected extension
+ * - Esc / Tab: Close extension list, return to main UI
+ * - Click background: Close
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -126,7 +126,7 @@ export function ExtensionSelector({
         style={{ backgroundColor: colors.bgSecondary }}
       >
         <div className="px-4 py-3 text-sm font-semibold" style={{ borderBottom: `1px solid ${colors.border}` }}>
-          {running ? '执行中...' : '选择扩展'}
+          {running ? 'Running...' : 'Select Extension'}
         </div>
         <div ref={listRef} className="overflow-y-auto">
           {extensions.map((ext, index) => (
@@ -149,7 +149,7 @@ export function ExtensionSelector({
           ))}
         </div>
         <div className="px-4 py-2 text-xs" style={{ color: colors.textMuted, borderTop: `1px solid ${colors.border}` }}>
-          ↑↓ 导航 · Enter 执行 · Esc/Tab 取消
+          ↑↓ Navigate · Enter Execute · Esc/Tab Cancel
         </div>
       </div>
     </div>

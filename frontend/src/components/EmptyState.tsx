@@ -1,5 +1,5 @@
 /**
- * 空状态提示组件
+ * Empty state component
  */
 
 import { theme } from '../theme'
@@ -22,14 +22,14 @@ export function EmptyState({
         <span className="text-sm">
           {hasSearchQuery
             ? semanticMode
-              ? '语义搜索未找到相关结果'
-              : '未找到匹配的结果'
-            : '暂无剪贴板历史'}
+              ? 'No semantic search results found'
+              : 'No matching results'
+            : 'No clipboard history yet'}
         </span>
         <span className="text-xs opacity-50">
           {hasSearchQuery && semanticMode
-            ? '尝试使用不同的描述词'
-            : '复制内容后会自动记录'}
+            ? 'Try using different keywords'
+            : 'Content will be recorded automatically after copying'}
         </span>
       </div>
     </li>

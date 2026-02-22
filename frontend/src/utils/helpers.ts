@@ -1,10 +1,10 @@
 /**
- * 辅助函数集合
+ * Helper functions collection
  */
 
 import { CONTENT_TRUNCATE_LENGTH } from '../constants'
 
-/** 格式化时间为相对时间 */
+/** Format time as relative time */
 export function formatTime(createdAt: string): string {
   try {
     const date = new Date(createdAt)
@@ -12,16 +12,16 @@ export function formatTime(createdAt: string): string {
     const diff = now.getTime() - date.getTime()
     const minutes = Math.floor(diff / 60000)
 
-    if (minutes < 1) return '刚刚'
-    if (minutes < 60) return `${minutes}分钟前`
-    if (minutes < 1440) return `${Math.floor(minutes / 60)}小时前`
-    return date.toLocaleDateString('zh-CN')
+    if (minutes < 1) return 'Just now'
+    if (minutes < 60) return `${minutes} min ago`
+    if (minutes < 1440) return `${Math.floor(minutes / 60)} hours ago`
+    return date.toLocaleDateString()
   } catch {
     return createdAt
   }
 }
 
-/** 格式化内容为简短显示 */
+/** Format content for display */
 export function formatContent(content: string, type: string): string {
   if (type === 'text') {
     const text = content.replace(/\n/g, ' ')
@@ -29,10 +29,10 @@ export function formatContent(content: string, type: string): string {
       ? text.slice(0, CONTENT_TRUNCATE_LENGTH) + '...'
       : text
   }
-  return `[图片] ${content.slice(0, 12)}...`
+  return `[Image] ${content.slice(0, 12)}...`
 }
 
-/** 生成预览文本 */
+/** Generate preview text */
 export function getPreview(content: string, maxLength: number = 200): string {
   return content.length > maxLength
     ? content.slice(0, maxLength) + '...'

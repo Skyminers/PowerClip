@@ -1,5 +1,5 @@
 /**
- * PowerClip - 主应用组件
+ * PowerClip - Main Application Component
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
@@ -24,7 +24,7 @@ const colors = theme.colors
 
 function App() {
 
-  // 状态
+  // State
   const [items, setItems] = useState<ClipboardItem[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -57,7 +57,7 @@ function App() {
     50
   )
 
-  // 派生状态
+  // Derived state
   const searchLower = useMemo(() => searchQuery.toLowerCase(), [searchQuery])
 
   // Display items based on search mode
@@ -76,7 +76,7 @@ function App() {
     return new Map<number, number>()
   }, [semanticMode, semanticResults])
 
-  // 复制项目
+  // Copy item to clipboard
   const copyItem = useCallback(async (item: ClipboardItem) => {
     try {
       await invoke('copy_to_clipboard', { item })
@@ -89,13 +89,13 @@ function App() {
     }
   }, [settings.auto_paste_enabled])
 
-  // 删除项目
+  // Delete item
   const deleteItem = useCallback(async (itemId: number) => {
     try {
       await invoke('delete_history_item', { itemId })
-      // 从列表中移除
+      // Remove from list
       setItems(prev => prev.filter(item => item.id !== itemId))
-      // 如果删除的是选中项，清除选中
+      // Clear selection if deleted item was selected
       if (selectedId === itemId) {
         setSelectedId(null)
       }
@@ -104,7 +104,7 @@ function App() {
     }
   }, [selectedId])
 
-  // 加载设置
+  // Load settings
   const loadSettings = useCallback(() => {
     invoke<Settings>('get_settings')
       .then(s => {
@@ -133,19 +133,19 @@ function App() {
     }
   }, [semanticStatus, settings.semantic_search_enabled])
 
-  // 全局键盘事件
+  // Global keyboard events
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (showExtensionsRef.current) return
 
-      // Cmd+, 打开配置文件
+      // Cmd+, to open config file
       if (e.key === ',' && (isDarwin ? e.metaKey : e.ctrlKey)) {
         e.preventDefault()
         invoke('open_settings_file').catch(() => {})
         return
       }
 
-      // Esc: 关闭扩展或隐藏窗口
+      // Esc: Close extensions or hide window
       if (e.key === 'Escape') {
         e.preventDefault()
         setSearchQuery('')
@@ -157,7 +157,7 @@ function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  // 列表键盘导航
+  // List keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (showExtensionsRef.current) return
 
@@ -197,13 +197,13 @@ function App() {
     }
   }, [filteredItems, selectedId, settings.extensions.length, copyItem])
 
-  // 加载历史
+  // Load history
   const loadHistory = useCallback(async () => {
     try {
       const result = await invoke<ClipboardItem[]>('get_history', { limit: MAX_HISTORY_FETCH })
       setItems(result)
 
-      // 异步加载图片，不阻塞
+      // Load images asynchronously without blocking
       result.filter(i => i.item_type === 'image').forEach(item => {
         invoke<string>('get_image_asset_url', { relativePath: item.content })
           .then(url => setImageCache(prev => ({ ...prev, [item.content]: url })))
@@ -212,7 +212,7 @@ function App() {
     } catch {}
   }, [])
 
-  // 初始化
+  // Initialize
   useEffect(() => {
     loadSettings()
     loadHistory()
@@ -243,14 +243,14 @@ function App() {
     return () => window.removeEventListener('powerclip:new-item', onNewItem)
   }, [loadSettings, loadHistory, loadSemanticStatus])
 
-  // 监听配置文件变化
+  // Listen for settings file changes
   useEffect(() => {
     const handler = () => loadSettings()
     window.addEventListener('powerclip:settings-changed', handler)
     return () => window.removeEventListener('powerclip:settings-changed', handler)
   }, [loadSettings])
 
-  // 窗口显示时重置
+  // Reset on window show
   useEffect(() => {
     const handler = () => {
       setShowExtensions(false)
@@ -263,14 +263,14 @@ function App() {
     return () => window.removeEventListener('powerclip:window-shown', handler)
   }, [loadHistory])
 
-  // 滚动到选中项
+  // Scroll to selected item
   useEffect(() => {
     if (selectedId !== null && listRef.current) {
       listRef.current.querySelector(`[data-id="${selectedId}"]`)?.scrollIntoView({ block: 'nearest' })
     }
   }, [selectedId])
 
-  // 初始焦点
+  // Initial focus
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), FOCUS_DELAY_MS)
     return () => clearTimeout(t)
@@ -289,7 +289,7 @@ function App() {
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={semanticMode ? "语义搜索..." : "搜索..."}
+            placeholder={semanticMode ? "Semantic search..." : "Search..."}
             className="flex-1 bg-transparent text-sm outline-none placeholder-gray-500 no-drag"
             style={{ color: colors.text }}
           />
@@ -301,7 +301,7 @@ function App() {
           )}
           {semanticError && semanticMode && (
             <span className="text-xs px-2 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: 'rgba(239,68,68,0.2)', color: '#fca5a5' }} title={semanticError}>
-              搜索错误
+              Search Error
             </span>
           )}
           {searchQuery && (
@@ -321,7 +321,7 @@ function App() {
           <button
             onClick={() => invoke('open_settings_file').catch(() => {})}
             className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag"
-            title="编辑配置文件 (Cmd+,)"
+            title="Edit config file (Cmd+,)"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />

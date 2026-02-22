@@ -1,5 +1,5 @@
 /**
- * 剪贴板列表项组件
+ * Clipboard list item component
  */
 
 import { memo, useState, useCallback } from 'react'
@@ -12,9 +12,9 @@ import { IconDocument, IconImage } from './icons'
 const colors = theme.colors
 
 /**
- * 格式化相似度分数为百分比
- * @param score 0.0 - 1.0 的相似度分数
- * @returns 0.00% - 100.00% 格式的字符串
+ * Format similarity score as percentage
+ * @param score Similarity score (0.0 - 1.0)
+ * @returns Formatted string (0.00% - 100.00%)
  */
 function formatScore(score: number): string {
   return (score * 100).toFixed(2) + '%'
@@ -34,7 +34,7 @@ export const ClipboardListItem = memo(function ClipboardListItem({
   index: number
   isSelected: boolean
   imageCache: ImageCache
-  semanticScore?: number  // AI 搜索相似度分数 (0.0 - 1.0)
+  semanticScore?: number  // AI search similarity score (0.0 - 1.0)
   onSelect: (id: number) => void
   onCopy: (item: ClipboardItem) => void
   onDelete: (id: number) => void
@@ -61,7 +61,7 @@ export const ClipboardListItem = memo(function ClipboardListItem({
       onMouseLeave={() => setShowDelete(false)}
     >
       <div className="flex items-start justify-between gap-3">
-        {/* 内容区域 */}
+        {/* Content area */}
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <span
             className={`text-sm flex-shrink-0 mt-0.5 ${isSelected ? 'opacity-90' : ''}`}
@@ -83,7 +83,7 @@ export const ClipboardListItem = memo(function ClipboardListItem({
               </>
             ) : (
               <div className="flex flex-col gap-1">
-                <p className="text-xs" style={{ color: colors.textMuted }}>图片</p>
+                <p className="text-xs" style={{ color: colors.textMuted }}>Image</p>
                 {imageCache[item.content] ? (
                   <img
                     src={imageCache[item.content]}
@@ -92,29 +92,29 @@ export const ClipboardListItem = memo(function ClipboardListItem({
                     style={{ borderColor: colors.border }}
                   />
                 ) : (
-                  <span className="text-xs" style={{ color: colors.textMuted }}>加载中...</span>
+                  <span className="text-xs" style={{ color: colors.textMuted }}>Loading...</span>
                 )}
               </div>
             )}
           </div>
         </div>
 
-        {/* 元数据区域 */}
+        {/* Metadata area */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* 删除按钮 */}
+          {/* Delete button */}
           {showDelete && !isDeleting && (
             <button
               onClick={handleDeleteClick}
               className="p-1 rounded hover:bg-red-500/20 transition-colors"
               style={{ color: '#ef4444' }}
-              title="删除"
+              title="Delete"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           )}
-          {/* AI 搜索相似度分数 */}
+          {/* AI search similarity score */}
           {semanticScore !== undefined && (
             <span
               className="text-xs px-1.5 py-0.5 rounded font-mono"
@@ -122,7 +122,7 @@ export const ClipboardListItem = memo(function ClipboardListItem({
                 backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.15)',
                 color: isSelected ? '#fff' : colors.accent
               }}
-              title={`语义相似度: ${formatScore(semanticScore)}`}
+              title={`Semantic similarity: ${formatScore(semanticScore)}`}
             >
               {formatScore(semanticScore)}
             </span>

@@ -1,6 +1,6 @@
 /**
- * 状态栏组件
- * 显示剪贴板统计和快捷键提示
+ * Status bar component
+ * Displays clipboard statistics and keyboard shortcuts
  */
 
 import { theme } from '../theme'
@@ -23,16 +23,16 @@ export function StatusBar({
   return (
     <div className="flex items-center justify-between px-4 py-2 text-xs" style={{ backgroundColor: colors.bgSecondary }}>
       <div className="flex items-center gap-4" style={{ color: colors.textMuted }}>
-        <span>{filteredCount} / {totalCount} 条</span>
-        {semanticMode && <span style={{ color: colors.accent }}>AI搜索</span>}
-        {!semanticMode && hasSearchQuery && <span style={{ color: colors.accent }}>筛选模式</span>}
+        <span>{filteredCount} / {totalCount} items</span>
+        {semanticMode && <span style={{ color: colors.accent }}>AI Search</span>}
+        {!semanticMode && hasSearchQuery && <span style={{ color: colors.accent }}>Filtered</span>}
       </div>
       <div className="flex items-center gap-4" style={{ color: colors.textMuted }}>
         <span className="flex items-center gap-1.5">
-          <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>1-9</kbd>快速复制
+          <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>1-9</kbd>Quick copy
         </span>
         <span className="flex items-center gap-1.5">
-          <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>Esc</kbd>关闭
+          <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>Esc</kbd>Close
         </span>
         <span>{isDarwin ? '⌘⇧V' : 'Ctrl+Shift+V'}</span>
       </div>

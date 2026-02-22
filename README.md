@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>基于 Rust & Tauri 2.0 构建的现代化剪贴板管理工具</strong>
+  <strong>A modern clipboard manager built with Rust & Tauri 2.0</strong>
 </p>
 
 <p align="center">
@@ -14,10 +14,10 @@
 </p>
 
 <p align="center">
-  <a href="#功能特性">功能特性</a> •
-  <a href="#安装与使用">安装与使用</a> •
-  <a href="#快捷键">快捷键</a> •
-  <a href="#开发指南">开发指南</a>
+  <a href="#features">Features</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#keyboard-shortcuts">Keyboard Shortcuts</a> •
+  <a href="#development">Development</a>
 </p>
 
 <div align="center">
@@ -28,104 +28,104 @@
 
 
 
-## 📖 简介
+## 📖 Introduction
 
-**PowerClip** 是一款轻量、极速且注重隐私的剪贴板历史管理工具。
+**PowerClip** is a lightweight, fast, and privacy-focused clipboard history manager.
 
-得益于 **Rust** 后端的强劲性能和 **Tauri** 的轻量化架构，PowerClip 在提供流畅体验的同时，几乎不占用系统资源。所有数据存储在本地 SQLite 数据库中，安全可控。
+Powered by **Rust** backend performance and **Tauri** lightweight architecture, PowerClip provides a smooth experience while consuming minimal system resources. All data is stored locally in a SQLite database, ensuring security and control.
 
-## ✨ 功能特性
+## ✨ Features
 
-- ⚡️ **极速响应** - Rust 驱动，毫秒级启动与搜索。
-- 🔒 **隐私安全** - 数据存储在本地 SQLite (Bundled)，无网络上传。
-- 📋 **历史记录** - 自动监听并记录剪贴板文本历史。
-- 🖥 **系统集成** - 完美的系统托盘支持与原生窗口体验。
-- ⌨️ **键盘优先** - 全局快捷键呼出，支持纯键盘导航操作。
-- 🎨 **现代界面** - 基于 React + Tailwind CSS 精心设计的 UI。
-- 🔍 **智能搜索** - 基于 Embedding 的自然语言搜索
+- ⚡️ **Blazing Fast** - Rust-powered, millisecond startup and search.
+- 🔒 **Privacy & Security** - Data stored locally in SQLite (Bundled), no network uploads.
+- 📋 **History Tracking** - Automatically monitors and records clipboard text history.
+- 🖥 **System Integration** - Perfect system tray support and native window experience.
+- ⌨️ **Keyboard First** - Global hotkey to summon, supports full keyboard navigation.
+- 🎨 **Modern UI** - Carefully designed interface with React + Tailwind CSS.
+- 🔍 **Smart Search** - Embedding-based natural language search
 
 ![alt text](image/embedding_search.png)
 
-## ⌨️ 快捷键
+## ⌨️ Keyboard Shortcuts
 
-### 全局操作
+### Global Operations
 
-| 操作系统 | 呼出/隐藏窗口 |
+| OS | Toggle Window |
 | :--- | :--- |
 | **macOS** | `Cmd` + `Shift` + `V` |
 | **Windows / Linux** | `Ctrl` + `Shift` + `V` |
 
-Tips: 快捷键可自定义
+Tip: Hotkey is customizable
 
-### 窗口内操作
+### In-Window Operations
 
-| 按键 | 动作 |
+| Key | Action |
 | :--- | :--- |
-| `↑` / `↓` | 在历史记录中导航 |
-| `Enter` | 复制选中内容并粘贴 |
-| `Esc` | 关闭窗口 |
-| `cmd(ctrl) + ,`| 打开配置文件 |
+| `↑` / `↓` | Navigate through history |
+| `Enter` | Copy selected item and paste |
+| `Esc` | Close window |
+| `cmd(ctrl) + ,`| Open config file |
 
-## 🛠 技术栈
+## 🛠 Tech Stack
 
-PowerClip 采用了目前最前沿的跨平台应用开发方案：
+PowerClip uses cutting-edge cross-platform development technologies:
 
 * **Core**: [Rust](https://www.rust-lang.org/) & [Tauri 2.0](https://v2.tauri.app/)
 * **Frontend**: [React](https://react.dev/) + TypeScript
 * **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-* **Database**: SQLite (本地存储)
-* **Runtime**: [Bun](https://bun.sh/) (构建工具)
+* **Database**: SQLite (local storage)
+* **Runtime**: [Bun](https://bun.sh/) (build tool)
 
-## 💻 开发指南
+## 💻 Development
 
-如果你想在本地运行或贡献代码，请确保你的环境满足以下要求：
+If you want to run locally or contribute, ensure your environment meets these requirements:
 
-### 前置要求
+### Prerequisites
 
-- **操作系统**: macOS 10.15+, Windows 10+, 或 Linux
+- **OS**: macOS 10.15+, Windows 10+, or Linux
 - **Rust**: 1.70+
-- **Node.js / Bun**: 建议使用 Bun 1.0+
+- **Node.js / Bun**: Bun 1.0+ recommended
 
-### 启动开发环境
+### Getting Started
 
-1. **克隆项目**
+1. **Clone the project**
 
 ```bash
 git clone [https://github.com/Skyminers/PowerClip.git](https://github.com/Skyminers/PowerClip.git)
 cd power-clip
 ```
 
-2. **安装依赖**
+2. **Install dependencies**
 ```bash
-# 安装前端依赖 (推荐使用 bun，也可以用 npm/pnpm/yarn)
+# Install frontend dependencies (bun recommended, npm/pnpm/yarn also work)
 bun install
 
-# 下载 Rust 依赖
+# Download Rust dependencies
 cd src-tauri
 cargo fetch
 cd ..
 ```
 
 
-3. **运行开发模式**
+3. **Run development mode**
 ```bash
-# 这将同时启动前端服务器和 Tauri 窗口，并支持热重载
+# This starts both frontend server and Tauri window with hot reload
 bun tauri dev
 ```
 
 
 
-### 构建发布版本
+### Build for Release
 
 ```bash
 bun tauri build
 ```
 
-构建产物将位于 `src-tauri/target/release/bundle` 目录下。
+Build artifacts will be located in `src-tauri/target/release/bundle`.
 
-## 📄 许可证
+## 📄 License
 
-本项目基于 Apache License 2.0 开源。
+This project is open-sourced under the Apache License 2.0.
 
 ---
 

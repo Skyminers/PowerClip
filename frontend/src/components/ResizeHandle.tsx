@@ -1,5 +1,5 @@
 /**
- * 窗口调整大小手柄
+ * Window resize handle
  */
 
 import { invoke } from '@tauri-apps/api/core'
@@ -38,5 +38,5 @@ export function ResizeHandle() {
     }
   }
 
-  return <div className="resize-handle" onMouseDown={handleMouseDown} title="拖拽调整大小" />
+  return <div className="resize-handle" onMouseDown={handleMouseDown} title="Drag to resize" />
 }

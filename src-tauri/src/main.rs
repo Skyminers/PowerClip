@@ -50,9 +50,9 @@ fn setup_tray(app: &tauri::App) -> Result<(), String> {
     let icon = TauriImage::from_bytes(icon_data).map_err(|e| e.to_string())?;
 
     let tray_menu = MenuBuilder::new(app)
-        .text("show", "显示窗口")
+        .text("show", "Show Window")
         .separator()
-        .text("quit", "退出")
+        .text("quit", "Quit")
         .build()
         .map_err(|e| e.to_string())?;
 

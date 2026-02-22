@@ -1,6 +1,6 @@
 /**
- * AI 语义搜索按钮与弹出面板
- * 点击按钮弹出面板，展示状态、引导设置、一键下载等
+ * AI semantic search button and popup panel
+ * Click to show panel with status, setup guide, and one-click download
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
@@ -54,7 +54,7 @@ export function SemanticToggle({
   const step = getSetupStep(enabled, status)
   const isReady = step === 'ready'
 
-  // 点击外部关闭面板
+  // Close panel on outside click
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
@@ -70,7 +70,7 @@ export function SemanticToggle({
     return () => window.removeEventListener('mousedown', handler)
   }, [open])
 
-  // 定时刷新状态（下载/加载中）
+  // Periodically refresh status (during download/loading)
   useEffect(() => {
     if (!open) return
     if (step !== 'downloading' && step !== 'loading') return
@@ -78,7 +78,7 @@ export function SemanticToggle({
     return () => clearInterval(interval)
   }, [open, step, onRefreshStatus])
 
-  // 当 enabled 变化或面板打开时刷新状态
+  // Refresh status when enabled changes or panel opens
   useEffect(() => {
     if (enabled) {
       onRefreshStatus()
@@ -98,7 +98,7 @@ export function SemanticToggle({
     if (isReady) {
       onToggle()
     } else {
-      // 先刷新一次状态再打开面板
+      // Refresh status before opening panel
       onRefreshStatus()
       setDownloadError(null)
       setShowManual(false)
@@ -114,7 +114,7 @@ export function SemanticToggle({
     setDownloadError(null)
     invoke('download_model')
       .then(() => {
-        // 延迟刷新，让后端有时间更新状态
+        // Delay refresh to let backend update status
         setTimeout(onRefreshStatus, 500)
       })
       .catch((e) => {
@@ -135,7 +135,7 @@ export function SemanticToggle({
     navigator.clipboard.writeText(text).catch(() => {})
   }, [])
 
-  // 按钮样式
+  // Button style
   const buttonStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -154,7 +154,7 @@ export function SemanticToggle({
     position: 'relative',
   }
 
-  // 指示灯颜色
+  // Indicator dot color
   const dotColor = (() => {
     switch (step) {
       case 'ready': return active ? '#fff' : '#4ade80'
@@ -172,9 +172,9 @@ export function SemanticToggle({
         style={buttonStyle}
         onClick={handleButtonClick}
         className="no-drag"
-        title={isReady ? (active ? '关闭AI搜索' : '开启AI搜索') : '设置AI搜索'}
+        title={isReady ? (active ? 'Disable AI search' : 'Enable AI search') : 'AI search settings'}
       >
-        {/* 状态指示灯 */}
+        {/* Status indicator dot */}
         <span style={{
           width: 6,
           height: 6,
@@ -189,7 +189,7 @@ export function SemanticToggle({
         <span>AI</span>
       </button>
 
-      {/* 弹出面板 */}
+      {/* Popup panel */}
       {open && (
         <div
           ref={panelRef}
@@ -207,7 +207,7 @@ export function SemanticToggle({
             animation: 'fadeIn 0.15s ease-out',
           }}
         >
-          {/* 头部 */}
+          {/* Header */}
           <div style={{
             padding: '14px 16px 10px',
             borderBottom: `1px solid ${colors.border}`,
@@ -216,21 +216,21 @@ export function SemanticToggle({
               <svg style={{ width: 16, height: 16, color: colors.accent }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
-              <span style={{ color: colors.text, fontSize: 13, fontWeight: 600 }}>AI 语义搜索</span>
+              <span style={{ color: colors.text, fontSize: 13, fontWeight: 600 }}>AI Semantic Search</span>
             </div>
             <span style={{ color: colors.textMuted, fontSize: 11, lineHeight: '1.5' }}>
-              使用本地 AI 模型，根据语义理解搜索剪贴板内容
+              Search clipboard content using local AI model with semantic understanding
             </span>
           </div>
 
-          {/* 步骤内容 */}
+          {/* Step content */}
           <div style={{ padding: '12px 16px' }}>
             {step === 'enable' && (
               <StepCard
                 stepNum={1}
-                title="启用 AI 搜索"
-                description='在设置文件中将 "semantic_search_enabled" 设为 true，保存后自动生效'
-                action="打开设置文件"
+                title="Enable AI Search"
+                description='Set "semantic_search_enabled" to true in settings file, takes effect after saving'
+                action="Open Settings File"
                 onAction={handleEnableClick}
               />
             )}
@@ -239,9 +239,9 @@ export function SemanticToggle({
               <div>
                 <StepCard
                   stepNum={2}
-                  title="下载 AI 模型"
-                  description="需要下载 EmbeddingGemma 模型（约 236MB），模型完全本地运行，不传输任何数据"
-                  action="开始下载"
+                  title="Download AI Model"
+                  description="Need to download EmbeddingGemma model (~236MB). Model runs entirely locally, no data transmitted"
+                  action="Start Download"
                   onAction={handleDownloadClick}
                 />
                 <button
@@ -258,14 +258,14 @@ export function SemanticToggle({
                     padding: 0,
                   }}
                 >
-                  网络问题？手动下载
+                  Network issues? Manual download
                 </button>
               </div>
             )}
 
             {(step === 'download' && (showManual || downloadError)) && (
               <div>
-                <StepLabel stepNum={2} title="手动下载模型" />
+                <StepLabel stepNum={2} title="Manual Model Download" />
                 {downloadError && (
                   <div style={{
                     marginBottom: 10,
@@ -275,14 +275,14 @@ export function SemanticToggle({
                     color: '#fca5a5',
                     fontSize: 11,
                   }}>
-                    下载失败: {downloadError}
+                    Download failed: {downloadError}
                   </div>
                 )}
                 <p style={{
                   color: colors.textMuted, fontSize: 11, lineHeight: '1.6',
                   margin: '6px 0 10px 0',
                 }}>
-                  如果自动下载失败，请手动下载模型文件并放入指定位置：
+                  If auto download fails, please manually download the model file and place it in the specified location:
                 </p>
 
                 {manualInfo && (
@@ -291,7 +291,7 @@ export function SemanticToggle({
                       display: 'flex', alignItems: 'center', gap: 6,
                       marginBottom: 8,
                     }}>
-                      <span style={{ color: colors.text, fontSize: 11, fontWeight: 500 }}>下载地址:</span>
+                      <span style={{ color: colors.text, fontSize: 11, fontWeight: 500 }}>Download URL:</span>
                       <button
                         onClick={() => copyToClipboard(manualInfo.url)}
                         style={{
@@ -300,7 +300,7 @@ export function SemanticToggle({
                           cursor: 'pointer', padding: 0,
                         }}
                       >
-                        复制
+                        Copy
                       </button>
                     </div>
                     <div style={{
@@ -319,7 +319,7 @@ export function SemanticToggle({
                       display: 'flex', alignItems: 'center', gap: 6,
                       marginBottom: 8, marginTop: 10,
                     }}>
-                      <span style={{ color: colors.text, fontSize: 11, fontWeight: 500 }}>保存位置:</span>
+                      <span style={{ color: colors.text, fontSize: 11, fontWeight: 500 }}>Save location:</span>
                       <button
                         onClick={() => copyToClipboard(manualInfo.target_path)}
                         style={{
@@ -328,7 +328,7 @@ export function SemanticToggle({
                           cursor: 'pointer', padding: 0,
                         }}
                       >
-                        复制
+                        Copy
                       </button>
                     </div>
                     <div style={{
@@ -356,7 +356,7 @@ export function SemanticToggle({
                       cursor: 'pointer',
                     }}
                   >
-                    已完成，检查文件
+                    Done, Check File
                   </button>
                   {!downloadError && (
                     <button
@@ -369,7 +369,7 @@ export function SemanticToggle({
                         cursor: 'pointer',
                       }}
                     >
-                      返回
+                      Back
                     </button>
                   )}
                 </div>
@@ -378,7 +378,7 @@ export function SemanticToggle({
 
             {step === 'downloading' && (
               <div>
-                <StepLabel stepNum={2} title="正在下载模型..." />
+                <StepLabel stepNum={2} title="Downloading model..." />
                 <ProgressBar progress={status?.download_progress ?? 0} />
                 <div style={{
                   display: 'flex',
@@ -399,11 +399,11 @@ export function SemanticToggle({
                       cursor: 'pointer',
                     }}
                   >
-                    取消下载
+                    Cancel Download
                   </button>
                 </div>
                 <span style={{ color: colors.textMuted, fontSize: 10, marginTop: 4, display: 'block' }}>
-                  下载在后台进行，可关闭此窗口
+                  Download runs in background, you can close this window
                 </span>
               </div>
             )}
@@ -412,8 +412,8 @@ export function SemanticToggle({
               <div>
                 <StepLabel stepNum={3} title={
                   status?.indexing_in_progress
-                    ? `正在索引历史记录 (${status.indexed_count}/${status.total_text_count})`
-                    : '正在加载模型...'
+                    ? `Indexing history (${status.indexed_count}/${status.total_text_count})`
+                    : 'Loading model...'
                 } />
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 8,
@@ -423,7 +423,7 @@ export function SemanticToggle({
                     <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  <span>首次加载可能需要几秒钟</span>
+                  <span>Initial load may take a few seconds</span>
                 </div>
               </div>
             )}
@@ -437,10 +437,10 @@ export function SemanticToggle({
                   marginBottom: 10,
                 }}>
                   <span style={{ color: '#4ade80', fontSize: 12 }}>&#10003;</span>
-                  <span style={{ color: '#4ade80', fontSize: 12, fontWeight: 500 }}>AI 搜索已就绪</span>
+                  <span style={{ color: '#4ade80', fontSize: 12, fontWeight: 500 }}>AI Search Ready</span>
                 </div>
                 <span style={{ color: colors.textMuted, fontSize: 11, lineHeight: '1.5' }}>
-                  已索引 {status?.indexed_count ?? 0} 条文本记录。点击 AI 按钮即可切换搜索模式。
+                  {status?.indexed_count ?? 0} text records indexed. Click AI button to toggle search mode.
                 </span>
                 <button
                   onClick={() => { onToggle(); setOpen(false) }}
@@ -452,13 +452,13 @@ export function SemanticToggle({
                     cursor: 'pointer', transition: 'background-color 0.15s',
                   }}
                 >
-                  {active ? '关闭 AI 搜索' : '开启 AI 搜索'}
+                  {active ? 'Disable AI Search' : 'Enable AI Search'}
                 </button>
               </div>
             )}
           </div>
 
-          {/* 底部关闭 */}
+          {/* Footer */}
           <div style={{
             padding: '8px 16px 10px',
             borderTop: `1px solid ${colors.border}`,
@@ -472,7 +472,7 @@ export function SemanticToggle({
                 cursor: 'pointer', padding: '2px 8px',
               }}
             >
-              关闭
+              Close
             </button>
           </div>
         </div>
@@ -481,7 +481,7 @@ export function SemanticToggle({
   )
 }
 
-/* ---- 子组件 ---- */
+/* ---- Sub-components ---- */
 
 function StepLabel({ stepNum, title }: { stepNum: number; title: string }) {
   return (
