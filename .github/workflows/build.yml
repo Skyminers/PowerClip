@@ -81,6 +81,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY || '' }}
           TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD || '' }}
+          # Disable Metal/GPU for macOS CI (no GPU available on GitHub runners)
+          # Multiple env vars to ensure Metal is disabled across different llama.cpp versions
+          CMAKE_ARGS: "-DGGML_METAL=OFF"
+          LLAMA_NO_METAL: "1"
+          GGML_NO_METAL: "1"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
