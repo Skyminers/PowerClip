@@ -1,6 +1,7 @@
 /**
  * Window drag area wrapper
  * Uses data-tauri-drag-region attribute + startDragging API
+ * Cross-platform: works on macOS and Windows
  */
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -23,10 +24,17 @@ export function WindowDragHandler({ children }: { children: React.ReactNode }) {
       return
     }
 
+    // Also check for elements with no-drag class
+    if (target.closest('.no-drag')) {
+      return
+    }
+
     try {
-      await getCurrentWindow().startDragging()
-    } catch {
-      // Drag may fail if window is not focused
+      const window = getCurrentWindow()
+      await window.startDragging()
+    } catch (error) {
+      // Log for debugging but don't break the app
+      console.debug('Window drag failed:', error)
     }
   }
 
