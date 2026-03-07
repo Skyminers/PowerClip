@@ -7,4 +7,5 @@ pub mod history;
 pub mod image;
 pub mod paste;
 pub mod settings;
+pub mod snippets;
 

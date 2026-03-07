@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import type { ClipboardItem, Settings, ImageCache, SemanticStatus } from './types'
+import type { ClipboardItem, Settings, ImageCache, SemanticStatus, Snippet } from './types'
 import { theme } from './theme'
 import { MAX_HISTORY_FETCH, FOCUS_DELAY_MS } from './constants'
 import { isDarwin } from './utils/platform'
@@ -17,7 +17,9 @@ import {
   StatusBar,
   ClipboardListItem,
   ExtensionSelector,
-  SemanticToggle
+  SemanticToggle,
+  SnippetListItem,
+  AddSnippetDialog
 } from './components'
 
 const colors = theme.colors
@@ -32,6 +34,12 @@ function App() {
   const [showExtensions, setShowExtensions] = useState(false)
   const [semanticMode, setSemanticMode] = useState(false)
   const [semanticStatus, setSemanticStatus] = useState<SemanticStatus | null>(null)
+
+  // Snippets state
+  const [viewMode, setViewMode] = useState<'history' | 'snippets'>('history')
+  const [snippets, setSnippets] = useState<Snippet[]>([])
+  const [selectedSnippetId, setSelectedSnippetId] = useState<number | null>(null)
+  const [addDialogItem, setAddDialogItem] = useState<ClipboardItem | null>(null)
 
   const [settings, setSettings] = useState<Settings>({
     auto_cleanup_enabled: false,
@@ -50,6 +58,8 @@ function App() {
   // Refs for global keydown
   const showExtensionsRef = useRef(showExtensions)
   showExtensionsRef.current = showExtensions
+  const viewModeRef = useRef(viewMode)
+  viewModeRef.current = viewMode
 
   // Semantic search hook
   const { results: semanticResults, loading: semanticLoading, error: semanticError } = useSemanticSearch(
@@ -104,6 +114,64 @@ function App() {
     }
   }, [selectedId])
 
+  // Load snippets
+  const loadSnippets = useCallback(async () => {
+    try {
+      const result = await invoke<Snippet[]>('get_snippets')
+      setSnippets(result)
+    } catch {}
+  }, [])
+
+  // Copy snippet to clipboard
+  const copySnippet = useCallback(async (snippet: Snippet) => {
+    try {
+      // Create a ClipboardItem-like object for the copy_to_clipboard command
+      const item = {
+        id: snippet.id,
+        item_type: 'text',
+        content: snippet.content,
+        hash: '',
+        created_at: snippet.created_at
+      }
+      await invoke('copy_to_clipboard', { item })
+      await invoke('hide_window')
+      if (settings.auto_paste_enabled) {
+        await invoke('simulate_paste')
+      }
+    } catch (error) {
+      console.error('Failed to copy snippet:', error)
+    }
+  }, [settings.auto_paste_enabled])
+
+  // Delete snippet
+  const deleteSnippet = useCallback(async (snippetId: number) => {
+    try {
+      await invoke('delete_snippet', { id: snippetId })
+      setSnippets(prev => prev.filter(s => s.id !== snippetId))
+      if (selectedSnippetId === snippetId) {
+        setSelectedSnippetId(null)
+      }
+    } catch (error) {
+      console.error('Failed to delete snippet:', error)
+    }
+  }, [selectedSnippetId])
+
+  // Add to snippets
+  const handleAddToSnippets = useCallback((item: ClipboardItem) => {
+    setAddDialogItem(item)
+  }, [])
+
+  // Confirm add snippet
+  const handleConfirmAddSnippet = useCallback(async (content: string, alias: string | null) => {
+    try {
+      await invoke('add_snippet', { content, alias })
+      await loadSnippets()
+    } catch (error) {
+      console.error('Failed to add snippet:', error)
+    }
+    setAddDialogItem(null)
+  }, [loadSnippets])
+
   // Load settings
   const loadSettings = useCallback(() => {
     invoke<Settings>('get_settings')
@@ -145,9 +213,23 @@ function App() {
         return
       }
 
+      // Cmd/Ctrl+P to toggle view mode
+      if (e.key === 'p' && (isDarwin ? e.metaKey : e.ctrlKey)) {
+        e.preventDefault()
+        setViewMode(prev => prev === 'history' ? 'snippets' : 'history')
+        setSearchQuery('')
+        setSelectedId(null)
+        setSelectedSnippetId(null)
+        return
+      }
+
       // Esc: Close extensions or hide window
       if (e.key === 'Escape') {
         e.preventDefault()
+        if (addDialogItem) {
+          setAddDialogItem(null)
+          return
+        }
         setSearchQuery('')
         invoke('hide_window').catch(() => {})
         return
@@ -155,12 +237,51 @@ function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [addDialogItem])
 
   // List keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (showExtensionsRef.current) return
 
+    // Handle snippets mode
+    if (viewModeRef.current === 'snippets') {
+      const filteredSnippets = snippets.filter(s =>
+        searchQuery.length === 0 ||
+        s.content.toLowerCase().includes(searchLower) ||
+        (s.alias && s.alias.toLowerCase().includes(searchLower))
+      )
+      const idx = filteredSnippets.findIndex(s => s.id === selectedSnippetId)
+
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault()
+          if (idx > 0) setSelectedSnippetId(filteredSnippets[idx - 1].id)
+          break
+        case 'ArrowDown':
+          e.preventDefault()
+          if (idx < filteredSnippets.length - 1) setSelectedSnippetId(filteredSnippets[idx + 1].id)
+          break
+        case 'Enter':
+          e.preventDefault()
+          if (selectedSnippetId !== null) {
+            const snippet = filteredSnippets.find(s => s.id === selectedSnippetId)
+            if (snippet) copySnippet(snippet)
+          }
+          break
+        case '/':
+          e.preventDefault()
+          inputRef.current?.focus()
+          break
+        default:
+          if (e.key >= '1' && e.key <= '9') {
+            const snippet = filteredSnippets[parseInt(e.key) - 1]
+            if (snippet) copySnippet(snippet)
+          }
+      }
+      return
+    }
+
+    // Handle history mode
     const idx = filteredItems.findIndex(item => item.id === selectedId)
 
     switch (e.key) {
@@ -195,7 +316,7 @@ function App() {
           if (item) copyItem(item)
         }
     }
-  }, [filteredItems, selectedId, settings.extensions.length, copyItem])
+  }, [filteredItems, selectedId, selectedSnippetId, snippets, searchLower, searchQuery, settings.extensions.length, copyItem, copySnippet])
 
   // Load history
   const loadHistory = useCallback(async () => {
@@ -217,6 +338,7 @@ function App() {
     loadSettings()
     loadHistory()
     loadSemanticStatus()
+    loadSnippets()
 
     invoke<{ x: number; y: number }>('get_window_state')
       .then(s => {
@@ -241,7 +363,7 @@ function App() {
     }
     window.addEventListener('powerclip:new-item', onNewItem)
     return () => window.removeEventListener('powerclip:new-item', onNewItem)
-  }, [loadSettings, loadHistory, loadSemanticStatus])
+  }, [loadSettings, loadHistory, loadSemanticStatus, loadSnippets])
 
   // Listen for settings file changes
   useEffect(() => {
@@ -254,21 +376,23 @@ function App() {
   useEffect(() => {
     const handler = () => {
       setShowExtensions(false)
-      loadHistory().then(() => {
-        if (listRef.current) listRef.current.scrollTop = 0
-        setTimeout(() => inputRef.current?.focus(), FOCUS_DELAY_MS)
-      })
+      setViewMode('history')
+      loadHistory()
+      loadSnippets()
+      if (listRef.current) listRef.current.scrollTop = 0
+      setTimeout(() => inputRef.current?.focus(), FOCUS_DELAY_MS)
     }
     window.addEventListener('powerclip:window-shown', handler)
     return () => window.removeEventListener('powerclip:window-shown', handler)
-  }, [loadHistory])
+  }, [loadHistory, loadSnippets])
 
   // Scroll to selected item
   useEffect(() => {
-    if (selectedId !== null && listRef.current) {
-      listRef.current.querySelector(`[data-id="${selectedId}"]`)?.scrollIntoView({ block: 'nearest' })
+    const targetId = viewMode === 'snippets' ? selectedSnippetId : selectedId
+    if (targetId !== null && listRef.current) {
+      listRef.current.querySelector(`[data-id="${targetId}"]`)?.scrollIntoView({ block: 'nearest' })
     }
-  }, [selectedId])
+  }, [selectedId, selectedSnippetId, viewMode])
 
   // Initial focus
   useEffect(() => {
@@ -289,7 +413,7 @@ function App() {
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={semanticMode ? "Semantic search..." : "Search..."}
+            placeholder={viewMode === 'snippets' ? "Search quick commands..." : semanticMode ? "Semantic search..." : "Search..."}
             className="flex-1 bg-transparent text-sm outline-none placeholder-gray-500 no-drag"
             style={{ color: colors.text }}
           />
@@ -312,12 +436,22 @@ function App() {
             </button>
           )}
           <SemanticToggle
-            enabled={settings.semantic_search_enabled}
+            enabled={settings.semantic_search_enabled && viewMode === 'history'}
             active={semanticMode}
             status={semanticStatus}
             onToggle={handleSemanticToggle}
             onRefreshStatus={loadSemanticStatus}
           />
+          <button
+            onClick={() => { setViewMode(prev => prev === 'history' ? 'snippets' : 'history'); setSearchQuery(''); setSelectedId(null); setSelectedSnippetId(null); }}
+            className={`p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag ${viewMode === 'snippets' ? 'bg-white/10' : ''}`}
+            title={`Toggle quick commands (${isDarwin ? 'Cmd' : 'Ctrl'}+P)`}
+            style={{ color: viewMode === 'snippets' ? colors.accent : colors.textMuted }}
+          >
+            <svg className="w-4 h-4" fill={viewMode === 'snippets' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+            </svg>
+          </button>
           <button
             onClick={() => invoke('open_settings_file').catch(() => {})}
             className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag"
@@ -331,7 +465,7 @@ function App() {
         </div>
       </WindowDragHandler>
 
-      {showExtensions && (
+      {showExtensions && viewMode === 'history' && (
         <ExtensionSelector
           extensions={settings.extensions}
           selectedItem={filteredItems.find(i => i.id === selectedId) || null}
@@ -340,29 +474,85 @@ function App() {
         />
       )}
 
+      {/* Add Snippet Dialog */}
+      {addDialogItem && (
+        <AddSnippetDialog
+          item={addDialogItem}
+          onConfirm={handleConfirmAddSnippet}
+          onCancel={() => setAddDialogItem(null)}
+        />
+      )}
+
       <ul ref={listRef} className="flex-1 overflow-y-auto scrollbar-thin" style={{ backgroundColor: colors.bg }} onKeyDown={handleKeyDown} tabIndex={0}>
-        {filteredItems.map((item, index) => (
-          <ClipboardListItem
-            key={item.id}
-            item={item}
-            index={index}
-            isSelected={selectedId === item.id}
-            imageCache={imageCache}
-            semanticScore={semanticScoreMap.get(item.id)}
-            onSelect={setSelectedId}
-            onCopy={copyItem}
-            onDelete={deleteItem}
-          />
-        ))}
-        {filteredItems.length === 0 && <EmptyState hasSearchQuery={searchQuery.length > 0} semanticMode={semanticMode} />}
+        {viewMode === 'history' ? (
+          <>
+            {filteredItems.map((item, index) => (
+              <ClipboardListItem
+                key={item.id}
+                item={item}
+                index={index}
+                isSelected={selectedId === item.id}
+                imageCache={imageCache}
+                semanticScore={semanticScoreMap.get(item.id)}
+                onSelect={setSelectedId}
+                onCopy={copyItem}
+                onDelete={deleteItem}
+                onAddToSnippets={handleAddToSnippets}
+              />
+            ))}
+            {filteredItems.length === 0 && <EmptyState hasSearchQuery={searchQuery.length > 0} semanticMode={semanticMode} />}
+          </>
+        ) : (
+          <>
+            {snippets
+              .filter(s =>
+                searchQuery.length === 0 ||
+                s.content.toLowerCase().includes(searchLower) ||
+                (s.alias && s.alias.toLowerCase().includes(searchLower))
+              )
+              .map((snippet, index) => (
+                <SnippetListItem
+                  key={snippet.id}
+                  snippet={snippet}
+                  index={index}
+                  isSelected={selectedSnippetId === snippet.id}
+                  onSelect={setSelectedSnippetId}
+                  onCopy={copySnippet}
+                  onDelete={deleteSnippet}
+                />
+              ))}
+            {snippets.filter(s =>
+              searchQuery.length === 0 ||
+              s.content.toLowerCase().includes(searchLower) ||
+              (s.alias && s.alias.toLowerCase().includes(searchLower))
+            ).length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 px-4">
+                <svg className="w-12 h-12 mb-4" style={{ color: colors.textMuted }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+                <p className="text-sm" style={{ color: colors.textMuted }}>
+                  {searchQuery.length > 0 ? 'No matching quick commands' : 'No quick commands yet'}
+                </p>
+                <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
+                  {searchQuery.length > 0 ? 'Try a different search term' : 'Click the star icon on a history item to add'}
+                </p>
+              </div>
+            )}
+          </>
+        )}
       </ul>
 
       <StatusBar
-        totalCount={items.length}
-        filteredCount={filteredItems.length}
+        totalCount={viewMode === 'snippets' ? snippets.length : items.length}
+        filteredCount={viewMode === 'snippets' ? snippets.filter(s =>
+          searchQuery.length === 0 ||
+          s.content.toLowerCase().includes(searchLower) ||
+          (s.alias && s.alias.toLowerCase().includes(searchLower))
+        ).length : filteredItems.length}
         hasSearchQuery={searchQuery.length > 0}
         isDarwin={isDarwin}
         semanticMode={semanticMode}
+        viewMode={viewMode}
       />
       <ResizeHandle />
     </div>

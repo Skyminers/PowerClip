@@ -253,6 +253,10 @@ async fn main() {
             semantic::commands::rebuild_semantic_index,
             semantic::commands::start_bulk_indexing,
             semantic::commands::full_rebuild_index,
+            commands::snippets::get_snippets,
+            commands::snippets::add_snippet,
+            commands::snippets::update_snippet,
+            commands::snippets::delete_snippet,
         ])
         .run(tauri::generate_context!())
         .expect("Fatal error while running tauri application");

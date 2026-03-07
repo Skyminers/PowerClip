@@ -60,3 +60,12 @@ export interface PowerClipLogger {
   getLogs: () => LogEntry[];
   clearLogs: () => void;
 }
+
+/// Snippet item for quick commands
+export interface Snippet {
+  id: number;
+  content: string;
+  alias: string | null;
+  created_at: string;
+  updated_at: string;
+}

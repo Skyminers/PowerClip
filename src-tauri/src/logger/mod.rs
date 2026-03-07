@@ -131,3 +131,71 @@ pub fn warning(module: &str, message: &str) {
 pub fn error(module: &str, message: &str) {
     Logger::global().log(LogLevel::Error, module, message);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_log_level_as_str() {
+        assert_eq!(LogLevel::Debug.as_str(), "DEBUG");
+        assert_eq!(LogLevel::Info.as_str(), "INFO");
+        assert_eq!(LogLevel::Warning.as_str(), "WARNING");
+        assert_eq!(LogLevel::Error.as_str(), "ERROR");
+    }
+
+    #[test]
+    fn test_log_level_ordering() {
+        // LogLevel values are ordered: Debug < Info < Warning < Error
+        assert!((LogLevel::Debug as u8) < (LogLevel::Info as u8));
+        assert!((LogLevel::Info as u8) < (LogLevel::Warning as u8));
+        assert!((LogLevel::Warning as u8) < (LogLevel::Error as u8));
+    }
+
+    #[test]
+    fn test_log_level_effective() {
+        let level = LogLevel::effective();
+        // In debug builds, should be Debug; in release, should be Info
+        if cfg!(debug_assertions) {
+            assert_eq!(level, LogLevel::Debug);
+        } else {
+            assert_eq!(level, LogLevel::Info);
+        }
+    }
+
+    #[test]
+    fn test_log_functions_dont_panic() {
+        // These should not panic even if called multiple times
+        debug("TestModule", "Test debug message");
+        info("TestModule", "Test info message");
+        warning("TestModule", "Test warning message");
+        error("TestModule", "Test error message");
+    }
+
+    #[test]
+    fn test_log_with_empty_strings() {
+        debug("", "");
+        info("", "");
+        warning("", "");
+        error("", "");
+    }
+
+    #[test]
+    fn test_log_with_unicode() {
+        debug("测试模块", "测试消息 🎉");
+        info("模块", "消息 你好世界");
+    }
+
+    #[test]
+    fn test_log_with_special_characters() {
+        debug("Module", "Message with\nnewline");
+        info("Module", "Message with\ttab");
+        error("Module", "Message with \"quotes\" and 'apostrophes'");
+    }
+
+    #[test]
+    fn test_log_with_long_message() {
+        let long_message = "x".repeat(10000);
+        info("Module", &long_message);
+    }
+}

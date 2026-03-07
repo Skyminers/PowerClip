@@ -28,7 +28,8 @@ export const ClipboardListItem = memo(function ClipboardListItem({
   semanticScore,
   onSelect,
   onCopy,
-  onDelete
+  onDelete,
+  onAddToSnippets
 }: {
   item: ClipboardItem
   index: number
@@ -38,9 +39,10 @@ export const ClipboardListItem = memo(function ClipboardListItem({
   onSelect: (id: number) => void
   onCopy: (item: ClipboardItem) => void
   onDelete: (id: number) => void
+  onAddToSnippets?: (item: ClipboardItem) => void
 }) {
   const [isDeleting, setIsDeleting] = useState(false)
-  const [showDelete, setShowDelete] = useState(false)
+  const [showActions, setShowActions] = useState(false)
 
   const handleDeleteClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -57,8 +59,8 @@ export const ClipboardListItem = memo(function ClipboardListItem({
       style={{ backgroundColor: isSelected ? colors.selected : 'transparent' }}
       onClick={() => !isDeleting && onSelect(item.id)}
       onDoubleClick={() => !isDeleting && onCopy(item)}
-      onMouseEnter={() => setShowDelete(true)}
-      onMouseLeave={() => setShowDelete(false)}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
     >
       <div className="flex items-start justify-between gap-3">
         {/* Content area */}
@@ -101,18 +103,34 @@ export const ClipboardListItem = memo(function ClipboardListItem({
 
         {/* Metadata area */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Delete button */}
-          {showDelete && !isDeleting && (
-            <button
-              onClick={handleDeleteClick}
-              className="p-1 rounded hover:bg-red-500/20 transition-colors"
-              style={{ color: '#ef4444' }}
-              title="Delete"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          {/* Action buttons */}
+          {showActions && !isDeleting && (
+            <>
+              {/* Add to snippets button - only for text items */}
+              {item.item_type === 'text' && onAddToSnippets && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onAddToSnippets(item); }}
+                  className="p-1 rounded hover:bg-yellow-500/20 transition-colors"
+                  style={{ color: '#eab308' }}
+                  title="Add to Quick Commands"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                </button>
+              )}
+              {/* Delete button */}
+              <button
+                onClick={handleDeleteClick}
+                className="p-1 rounded hover:bg-red-500/20 transition-colors"
+                style={{ color: '#ef4444' }}
+                title="Delete"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </>
           )}
           {/* AI search similarity score */}
           {semanticScore !== undefined && (

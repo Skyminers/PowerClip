@@ -95,3 +95,102 @@ impl Default for SemanticState {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_semantic_state_new() {
+        let state = SemanticState::new();
+
+        // Model should not be loaded initially
+        assert!(state.model.lock().unwrap().is_none());
+
+        // Index should be empty
+        assert!(state.index.read().unwrap().is_empty());
+
+        // Status should have default values
+        let status = state.status.read().unwrap();
+        assert!(!status.model_loaded);
+        assert_eq!(status.indexed_count, 0);
+        assert_eq!(status.total_text_count, 0);
+        assert!(!status.indexing_in_progress);
+        assert!(!status.enabled);
+    }
+
+    #[test]
+    fn test_semantic_state_default() {
+        let state = SemanticState::default();
+        assert!(state.index.read().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_semantic_status_default() {
+        let status = SemanticStatus::default();
+
+        assert!(!status.model_downloaded);
+        assert!(!status.model_loaded);
+        assert!(status.download_progress.is_none());
+        assert_eq!(status.indexed_count, 0);
+        assert_eq!(status.total_text_count, 0);
+        assert!(!status.indexing_in_progress);
+        assert!(!status.enabled);
+    }
+
+    #[test]
+    fn test_semantic_status_serialization() {
+        let status = SemanticStatus {
+            model_downloaded: true,
+            model_loaded: true,
+            download_progress: Some(0.5),
+            indexed_count: 100,
+            total_text_count: 200,
+            indexing_in_progress: true,
+            enabled: true,
+        };
+
+        let json = serde_json::to_string(&status).expect("Failed to serialize");
+        let deserialized: SemanticStatus =
+            serde_json::from_str(&json).expect("Failed to deserialize");
+
+        assert_eq!(status.model_downloaded, deserialized.model_downloaded);
+        assert_eq!(status.model_loaded, deserialized.model_loaded);
+        assert_eq!(status.download_progress, deserialized.download_progress);
+        assert_eq!(status.indexed_count, deserialized.indexed_count);
+        assert_eq!(status.total_text_count, deserialized.total_text_count);
+        assert_eq!(
+            status.indexing_in_progress,
+            deserialized.indexing_in_progress
+        );
+        assert_eq!(status.enabled, deserialized.enabled);
+    }
+
+    #[test]
+    fn test_semantic_state_clone() {
+        let state = SemanticState::new();
+        let cloned = state.clone();
+
+        // Both should share the same underlying data
+        assert!(Arc::ptr_eq(&state.model, &cloned.model));
+        assert!(Arc::ptr_eq(&state.index, &cloned.index));
+        assert!(Arc::ptr_eq(&state.status, &cloned.status));
+    }
+
+    #[test]
+    fn test_semantic_state_status_update() {
+        let state = SemanticState::new();
+
+        // Update status
+        {
+            let mut status = state.status.write().unwrap();
+            status.enabled = true;
+            status.indexed_count = 50;
+        }
+
+        // Verify update
+        let status = state.status.read().unwrap();
+        assert!(status.enabled);
+        assert_eq!(status.indexed_count, 50);
+    }
+}

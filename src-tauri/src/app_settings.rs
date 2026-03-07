@@ -288,3 +288,173 @@ pub fn start_settings_watcher(app_handle: tauri::AppHandle) -> Result<(), String
     logger::info("Settings", &format!("Watching: {:?}", path));
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_settings() {
+        let settings = AppSettings::default();
+
+        assert!(!settings.auto_cleanup_enabled);
+        assert_eq!(settings.max_items, 100);
+        assert_eq!(settings.hotkey_key, "KeyV");
+        assert!((settings.window_opacity - 0.95).abs() < 0.001);
+        assert!(!settings.auto_paste_enabled);
+        assert!(settings.extensions.is_empty());
+        assert!(!settings.semantic_search_enabled);
+    }
+
+    #[test]
+    fn test_default_hotkey_modifiers() {
+        let settings = AppSettings::default();
+
+        #[cfg(target_os = "macos")]
+        assert_eq!(settings.hotkey_modifiers, "Meta+Shift");
+
+        #[cfg(not(target_os = "macos"))]
+        assert_eq!(settings.hotkey_modifiers, "Control+Shift");
+    }
+
+    #[test]
+    fn test_extension_equality() {
+        let ext1 = Extension {
+            name: "Test".to_string(),
+            command: "echo".to_string(),
+            timeout: -1,
+            close_on_success: true,
+        };
+
+        let ext2 = Extension {
+            name: "Test".to_string(),
+            command: "echo".to_string(),
+            timeout: -1,
+            close_on_success: true,
+        };
+
+        let ext3 = Extension {
+            name: "Different".to_string(),
+            command: "echo".to_string(),
+            timeout: -1,
+            close_on_success: true,
+        };
+
+        assert_eq!(ext1, ext2);
+        assert_ne!(ext1, ext3);
+    }
+
+    #[test]
+    fn test_settings_equality() {
+        let s1 = AppSettings::default();
+        let s2 = AppSettings::default();
+
+        assert_eq!(s1, s2);
+    }
+
+    #[test]
+    fn test_settings_serialization() {
+        let settings = AppSettings {
+            auto_cleanup_enabled: true,
+            max_items: 200,
+            hotkey_modifiers: "Control+Alt".to_string(),
+            hotkey_key: "KeyP".to_string(),
+            window_opacity: 0.8,
+            auto_paste_enabled: true,
+            extensions: vec![Extension {
+                name: "Test".to_string(),
+                command: "cat".to_string(),
+                timeout: 5000,
+                close_on_success: false,
+            }],
+            semantic_search_enabled: true,
+        };
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&settings).expect("Failed to serialize");
+
+        // Deserialize back
+        let deserialized: AppSettings =
+            serde_json::from_str(&json).expect("Failed to deserialize");
+
+        assert_eq!(settings, deserialized);
+    }
+
+    #[test]
+    fn test_strip_comments() {
+        let content = r#"// This is a comment
+{
+  // Another comment
+  "key": "value"
+}
+// End comment"#;
+
+        let stripped = strip_comments(content);
+
+        assert!(!stripped.contains("This is a comment"));
+        assert!(!stripped.contains("Another comment"));
+        assert!(!stripped.contains("End comment"));
+        assert!(stripped.contains("key"));
+        assert!(stripped.contains("value"));
+    }
+
+    #[test]
+    fn test_strip_comments_preserves_code() {
+        let content = r#"{
+  "url": "https://example.com"
+}"#;
+
+        let stripped = strip_comments(content);
+
+        assert!(stripped.contains("https://example.com"));
+    }
+
+    #[test]
+    fn test_initial_settings_content() {
+        let content = initial_settings_content();
+
+        // Should contain JSON keys
+        assert!(content.contains("auto_cleanup_enabled"));
+        assert!(content.contains("max_items"));
+        assert!(content.contains("hotkey_modifiers"));
+        assert!(content.contains("hotkey_key"));
+        assert!(content.contains("window_opacity"));
+        assert!(content.contains("auto_paste_enabled"));
+        assert!(content.contains("semantic_search_enabled"));
+        assert!(content.contains("extensions"));
+
+        // Should contain comments
+        assert!(content.contains("//"));
+    }
+
+    #[test]
+    fn test_check_semantic_enabled_transition_false_to_true() {
+        // Reset the state
+        PREV_SEMANTIC_ENABLED.store(false, std::sync::atomic::Ordering::SeqCst);
+
+        // Transition from false to true should return true
+        let result = check_semantic_enabled_transition(true);
+        assert!(result);
+
+        // Now state is true, transition true to true should return false
+        let result = check_semantic_enabled_transition(true);
+        assert!(!result);
+
+        // Transition true to false should return false
+        let result = check_semantic_enabled_transition(false);
+        assert!(!result);
+
+        // Transition false to true again should return true
+        let result = check_semantic_enabled_transition(true);
+        assert!(result);
+    }
+
+    #[test]
+    fn test_init_semantic_tracker() {
+        init_semantic_tracker(true);
+        assert!(PREV_SEMANTIC_ENABLED.load(std::sync::atomic::Ordering::SeqCst));
+
+        init_semantic_tracker(false);
+        assert!(!PREV_SEMANTIC_ENABLED.load(std::sync::atomic::Ordering::SeqCst));
+    }
+}
