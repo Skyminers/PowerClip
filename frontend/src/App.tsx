@@ -6,7 +6,6 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { ClipboardItem, Settings, ImageCache, SemanticStatus, Snippet } from './types'
 import { theme } from './theme'
-import { MAX_HISTORY_FETCH, FOCUS_DELAY_MS } from './constants'
 import { isDarwin } from './utils/platform'
 import { useSemanticSearch } from './hooks/useSemanticSearch'
 
@@ -50,6 +49,18 @@ function App() {
     auto_paste_enabled: false,
     extensions: [],
     semantic_search_enabled: false,
+    add_to_snippets_hotkey_enabled: true,
+    add_to_snippets_hotkey_modifiers: isDarwin ? 'Meta+Shift' : 'Control+Shift',
+    add_to_snippets_hotkey_key: 'KeyS',
+    clipboard_poll_interval_ms: 100,
+    min_similarity_score: 0.2,
+    max_embeddings_in_memory: 50000,
+    content_truncate_length: 50,
+    image_preview_max_width: 120,
+    image_preview_max_height: 80,
+    max_history_fetch: 10000,
+    focus_delay_ms: 50,
+    semantic_search_debounce_ms: 300,
   })
 
   const listRef = useRef<HTMLUListElement>(null)
@@ -64,7 +75,9 @@ function App() {
   // Semantic search hook
   const { results: semanticResults, loading: semanticLoading, error: semanticError } = useSemanticSearch(
     semanticMode ? searchQuery : '',
-    50
+    50,
+    settings.semantic_search_debounce_ms,
+    settings.min_similarity_score
   )
 
   // Derived state
@@ -119,7 +132,9 @@ function App() {
     try {
       const result = await invoke<Snippet[]>('get_snippets')
       setSnippets(result)
-    } catch {}
+    } catch (error) {
+      console.error('[PowerClip] Failed to load snippets:', error)
+    }
   }, [])
 
   // Copy snippet to clipboard
@@ -321,17 +336,19 @@ function App() {
   // Load history
   const loadHistory = useCallback(async () => {
     try {
-      const result = await invoke<ClipboardItem[]>('get_history', { limit: MAX_HISTORY_FETCH })
+      const result = await invoke<ClipboardItem[]>('get_history', { limit: settings.max_history_fetch })
       setItems(result)
 
       // Load images asynchronously without blocking
       result.filter(i => i.item_type === 'image').forEach(item => {
         invoke<string>('get_image_asset_url', { relativePath: item.content })
           .then(url => setImageCache(prev => ({ ...prev, [item.content]: url })))
-          .catch(() => {})
+          .catch((error) => console.error('[PowerClip] Failed to load image:', error))
       })
-    } catch {}
-  }, [])
+    } catch (error) {
+      console.error('[PowerClip] Failed to load history:', error)
+    }
+  }, [settings.max_history_fetch])
 
   // Initialize
   useEffect(() => {
@@ -372,6 +389,34 @@ function App() {
     return () => window.removeEventListener('powerclip:settings-changed', handler)
   }, [loadSettings])
 
+  // Listen for add-to-snippets hotkey
+  useEffect(() => {
+    const handleAddToSnippetsHotkey = async () => {
+    console.log('[PowerClip] Add to snippets hotkey triggered')
+      try {
+        // Get current clipboard content
+        const content = await navigator.clipboard.readText()
+        if (content && content.trim()) {
+          // Add to snippets with empty alias
+          const result = await invoke<Snippet>('add_snippet', {
+            content: content.trim(),
+            alias: null
+          })
+          console.log('[PowerClip] Added to snippets:', result.id)
+
+          // Show a brief notification (optional - could use toast)
+          // For now, just reload snippets
+          loadSnippets()
+        }
+      } catch (error) {
+        console.error('[PowerClip] Failed to add to snippets via hotkey:', error)
+      }
+    }
+
+    window.addEventListener('powerclip:add-to-snippets-hotkey', handleAddToSnippetsHotkey)
+    return () => window.removeEventListener('powerclip:add-to-snippets-hotkey', handleAddToSnippetsHotkey)
+  }, [loadSnippets])
+
   // Reset on window show
   useEffect(() => {
     const handler = () => {
@@ -380,11 +425,11 @@ function App() {
       loadHistory()
       loadSnippets()
       if (listRef.current) listRef.current.scrollTop = 0
-      setTimeout(() => inputRef.current?.focus(), FOCUS_DELAY_MS)
+      setTimeout(() => inputRef.current?.focus(), settings.focus_delay_ms)
     }
     window.addEventListener('powerclip:window-shown', handler)
     return () => window.removeEventListener('powerclip:window-shown', handler)
-  }, [loadHistory, loadSnippets])
+  }, [loadHistory, loadSnippets, settings.focus_delay_ms])
 
   // Scroll to selected item
   useEffect(() => {
@@ -396,9 +441,9 @@ function App() {
 
   // Initial focus
   useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), FOCUS_DELAY_MS)
+    const t = setTimeout(() => inputRef.current?.focus(), settings.focus_delay_ms)
     return () => clearTimeout(t)
-  }, [])
+  }, [settings.focus_delay_ms])
 
   return (
     <div className="window-wrapper w-full h-full flex flex-col text-white relative" style={{ opacity: settings.window_opacity }}>
@@ -494,6 +539,9 @@ function App() {
                 isSelected={selectedId === item.id}
                 imageCache={imageCache}
                 semanticScore={semanticScoreMap.get(item.id)}
+                contentTruncateLength={settings.content_truncate_length}
+                imagePreviewMaxWidth={settings.image_preview_max_width}
+                imagePreviewMaxHeight={settings.image_preview_max_height}
                 onSelect={setSelectedId}
                 onCopy={copyItem}
                 onDelete={deleteItem}

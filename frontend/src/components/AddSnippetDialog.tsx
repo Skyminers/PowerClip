@@ -44,6 +44,7 @@ export function AddSnippetDialog({
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
       onClick={onCancel}
       onKeyDown={handleKeyDown}
+      tabIndex={0}
     >
       <div
         className="rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden"

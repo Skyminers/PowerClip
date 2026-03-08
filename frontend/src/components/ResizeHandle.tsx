@@ -3,7 +3,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { getCurrentWindow, PhysicalSize } from '@tauri-apps/api/window'
 import { WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT, WINDOW_MAX_WIDTH, WINDOW_MAX_HEIGHT } from '../constants'
 
 export function ResizeHandle() {
@@ -39,10 +39,7 @@ export function ResizeHandle() {
               lastWidth = pendingWidth
               lastHeight = pendingHeight
               try {
-                await window.setSize({
-                  type: 'Physical',
-                  data: { width: pendingWidth, height: pendingHeight }
-                })
+                await window.setSize(new PhysicalSize(pendingWidth, pendingHeight))
               } catch {
                 // Ignore resize errors
               }

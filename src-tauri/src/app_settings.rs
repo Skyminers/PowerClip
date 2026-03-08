@@ -35,6 +35,93 @@ pub struct AppSettings {
     pub extensions: Vec<Extension>,
     #[serde(default)]
     pub semantic_search_enabled: bool,
+    // Hotkey for quickly adding clipboard content to snippets
+    #[serde(default = "default_add_to_snippets_enabled")]
+    pub add_to_snippets_hotkey_enabled: bool,
+    #[serde(default = "default_add_to_snippets_modifiers")]
+    pub add_to_snippets_hotkey_modifiers: String,
+    #[serde(default = "default_add_to_snippets_key")]
+    pub add_to_snippets_hotkey_key: String,
+    // ---- Advanced Settings ----
+    /// Clipboard polling interval in milliseconds (lower = more responsive but higher CPU)
+    #[serde(default = "default_clipboard_poll_interval_ms")]
+    pub clipboard_poll_interval_ms: u64,
+    /// Minimum similarity score for semantic search (0.0 - 1.0, lower = more results)
+    #[serde(default = "default_min_similarity_score")]
+    pub min_similarity_score: f32,
+    /// Maximum embeddings to keep in memory (affects memory usage)
+    #[serde(default = "default_max_embeddings_in_memory")]
+    pub max_embeddings_in_memory: usize,
+    /// Maximum characters to show in list item preview
+    #[serde(default = "default_content_truncate_length")]
+    pub content_truncate_length: usize,
+    /// Maximum image preview width in pixels
+    #[serde(default = "default_image_preview_max_width")]
+    pub image_preview_max_width: u32,
+    /// Maximum image preview height in pixels
+    #[serde(default = "default_image_preview_max_height")]
+    pub image_preview_max_height: u32,
+    /// Maximum history items to fetch from database
+    #[serde(default = "default_max_history_fetch")]
+    pub max_history_fetch: usize,
+    /// Delay before focusing search input (milliseconds)
+    #[serde(default = "default_focus_delay_ms")]
+    pub focus_delay_ms: u64,
+    /// Debounce delay for semantic search (milliseconds)
+    #[serde(default = "default_semantic_search_debounce_ms")]
+    pub semantic_search_debounce_ms: u64,
+}
+
+fn default_add_to_snippets_enabled() -> bool {
+    true
+}
+
+fn default_add_to_snippets_modifiers() -> String {
+    if cfg!(target_os = "macos") {
+        "Meta+Shift".to_string()
+    } else {
+        "Control+Shift".to_string()
+    }
+}
+
+fn default_add_to_snippets_key() -> String {
+    "KeyS".to_string()
+}
+
+fn default_clipboard_poll_interval_ms() -> u64 {
+    100
+}
+
+fn default_min_similarity_score() -> f32 {
+    0.2
+}
+
+fn default_max_embeddings_in_memory() -> usize {
+    50_000
+}
+
+fn default_content_truncate_length() -> usize {
+    50
+}
+
+fn default_image_preview_max_width() -> u32 {
+    120
+}
+
+fn default_image_preview_max_height() -> u32 {
+    80
+}
+
+fn default_max_history_fetch() -> usize {
+    10_000
+}
+
+fn default_focus_delay_ms() -> u64 {
+    50
+}
+
+fn default_semantic_search_debounce_ms() -> u64 {
+    300
 }
 
 impl Default for AppSettings {
@@ -52,6 +139,18 @@ impl Default for AppSettings {
             auto_paste_enabled: false,
             extensions: vec![],
             semantic_search_enabled: false,
+            add_to_snippets_hotkey_enabled: true,
+            add_to_snippets_hotkey_modifiers: default_add_to_snippets_modifiers(),
+            add_to_snippets_hotkey_key: default_add_to_snippets_key(),
+            clipboard_poll_interval_ms: default_clipboard_poll_interval_ms(),
+            min_similarity_score: default_min_similarity_score(),
+            max_embeddings_in_memory: default_max_embeddings_in_memory(),
+            content_truncate_length: default_content_truncate_length(),
+            image_preview_max_width: default_image_preview_max_width(),
+            image_preview_max_height: default_image_preview_max_height(),
+            max_history_fetch: default_max_history_fetch(),
+            focus_delay_ms: default_focus_delay_ms(),
+            semantic_search_debounce_ms: default_semantic_search_debounce_ms(),
         }
     }
 }
@@ -103,6 +202,47 @@ fn initial_settings_content() -> String {
   // First-time use requires downloading EmbeddingGemma model (~236MB), runs entirely locally
   // After enabling, click the AI button next to search bar to complete setup
   "semantic_search_enabled": false,
+
+  // ---- Quick Add to Snippets Hotkey ----
+  // Quickly add current clipboard content to snippets (Quick Commands)
+  // Press the hotkey while clipboard contains text to add it to snippets
+  "add_to_snippets_hotkey_enabled": true,
+  "add_to_snippets_hotkey_modifiers": "{platform_hotkey}",
+  "add_to_snippets_hotkey_key": "KeyS",
+
+  // ---- Advanced Settings ----
+  // Clipboard polling interval in milliseconds (lower = more responsive but higher CPU usage)
+  // Recommended: 50-200, Default: 100
+  "clipboard_poll_interval_ms": 100,
+
+  // Minimum similarity score for semantic search (0.0 - 1.0)
+  // Lower values = more results but potentially less relevant
+  // Recommended: 0.1-0.5, Default: 0.2
+  "min_similarity_score": 0.2,
+
+  // Maximum embeddings to keep in memory for semantic search
+  // Higher = more items searchable but more memory usage
+  // Each embedding uses ~3KB, Default: 50000 (~150MB max)
+  "max_embeddings_in_memory": 50000,
+
+  // Maximum characters to show in list item preview
+  // Recommended: 30-100, Default: 50
+  "content_truncate_length": 50,
+
+  // Image preview dimensions in pixels
+  "image_preview_max_width": 120,
+  "image_preview_max_height": 80,
+
+  // Maximum history items to fetch from database
+  // Higher = more history shown but slower initial load
+  // Recommended: 1000-20000, Default: 10000
+  "max_history_fetch": 10000,
+
+  // UI timing settings (in milliseconds)
+  // Delay before focusing search input after window shows
+  "focus_delay_ms": 50,
+  // Debounce delay for semantic search to avoid excessive API calls
+  "semantic_search_debounce_ms": 300
 
   // Extensions (press Tab on selected item to trigger)
   // - name: Display name in extension selector
@@ -234,6 +374,15 @@ pub fn start_settings_watcher(app_handle: tauri::AppHandle) -> Result<(), String
                                                 &settings.hotkey_modifiers,
                                                 &settings.hotkey_key,
                                             );
+
+                                            // Re-register add-to-snippets hotkey
+                                            let _ = crate::hotkey::register_add_to_snippets_hotkey(
+                                                &guard,
+                                                &hotkey_state.add_to_snippets_hotkey,
+                                                settings.add_to_snippets_hotkey_enabled,
+                                                &settings.add_to_snippets_hotkey_modifiers,
+                                                &settings.add_to_snippets_hotkey_key,
+                                            );
                                         }
                                     }
                                 }
@@ -304,6 +453,16 @@ mod tests {
         assert!(!settings.auto_paste_enabled);
         assert!(settings.extensions.is_empty());
         assert!(!settings.semantic_search_enabled);
+        // Check advanced settings defaults
+        assert_eq!(settings.clipboard_poll_interval_ms, 100);
+        assert!((settings.min_similarity_score - 0.2).abs() < 0.001);
+        assert_eq!(settings.max_embeddings_in_memory, 50_000);
+        assert_eq!(settings.content_truncate_length, 50);
+        assert_eq!(settings.image_preview_max_width, 120);
+        assert_eq!(settings.image_preview_max_height, 80);
+        assert_eq!(settings.max_history_fetch, 10_000);
+        assert_eq!(settings.focus_delay_ms, 50);
+        assert_eq!(settings.semantic_search_debounce_ms, 300);
     }
 
     #[test]
@@ -368,6 +527,18 @@ mod tests {
                 close_on_success: false,
             }],
             semantic_search_enabled: true,
+            add_to_snippets_hotkey_enabled: true,
+            add_to_snippets_hotkey_modifiers: "Meta+Control".to_string(),
+            add_to_snippets_hotkey_key: "KeyA".to_string(),
+            clipboard_poll_interval_ms: 150,
+            min_similarity_score: 0.3,
+            max_embeddings_in_memory: 30000,
+            content_truncate_length: 60,
+            image_preview_max_width: 150,
+            image_preview_max_height: 100,
+            max_history_fetch: 5000,
+            focus_delay_ms: 75,
+            semantic_search_debounce_ms: 400,
         };
 
         // Serialize to JSON

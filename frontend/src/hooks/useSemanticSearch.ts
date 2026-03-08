@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { SemanticSearchResult } from '../types'
-import { SEMANTIC_SEARCH_DEBOUNCE_MS } from '../constants'
 
 interface UseSemanticSearchResult {
   results: SemanticSearchResult[]
@@ -11,7 +10,9 @@ interface UseSemanticSearchResult {
 
 export function useSemanticSearch(
   query: string,
-  limit: number = 50
+  limit: number = 50,
+  debounceMs: number = 300,
+  minScore?: number
 ): UseSemanticSearchResult {
   const [results, setResults] = useState<SemanticSearchResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -31,7 +32,7 @@ export function useSemanticSearch(
     try {
       const searchResults = await invoke<SemanticSearchResult[]>(
         'semantic_search',
-        { query: searchQuery, limit }
+        { query: searchQuery, limit, minScore }
       )
       setResults(searchResults)
     } catch (e) {
@@ -41,7 +42,7 @@ export function useSemanticSearch(
     } finally {
       setLoading(false)
     }
-  }, [limit])
+  }, [limit, minScore])
 
   useEffect(() => {
     // Clear previous timeout
@@ -60,14 +61,14 @@ export function useSemanticSearch(
     setLoading(true)
     timeoutRef.current = setTimeout(() => {
       performSearch(query)
-    }, SEMANTIC_SEARCH_DEBOUNCE_MS)
+    }, debounceMs)
 
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [query, performSearch])
+  }, [query, performSearch, debounceMs])
 
   return { results, loading, error }
 }

@@ -143,6 +143,17 @@ impl EmbeddingIndex {
     ///
     /// Time complexity: O(n) for scoring + O(k log k) for sorting top K
     pub fn search(&self, query: &[f32], k: usize) -> Vec<SearchResult> {
+        self.search_with_threshold(query, k, self.min_score)
+    }
+
+    /// Search for top-K most similar items with a custom threshold.
+    ///
+    /// Uses dot product (equals cosine similarity for normalized vectors).
+    /// Results are filtered by the provided threshold.
+    /// Returns results sorted by score descending (highest similarity first).
+    ///
+    /// Time complexity: O(n) for scoring + O(k log k) for sorting top K
+    pub fn search_with_threshold(&self, query: &[f32], k: usize, min_score: f32) -> Vec<SearchResult> {
         debug_assert_eq!(
             query.len(),
             self.dim,
@@ -165,7 +176,7 @@ impl EmbeddingIndex {
                 let embedding = &self.embeddings[start..start + self.dim];
                 (item_id, dot_product(query, embedding))
             })
-            .filter(|(_, score)| *score >= self.min_score)
+            .filter(|(_, score)| *score >= min_score)
             .collect();
 
         if scores.is_empty() {

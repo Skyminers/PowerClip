@@ -26,6 +26,9 @@ export const ClipboardListItem = memo(function ClipboardListItem({
   isSelected,
   imageCache,
   semanticScore,
+  contentTruncateLength = 50,
+  imagePreviewMaxWidth = 120,
+  imagePreviewMaxHeight = 80,
   onSelect,
   onCopy,
   onDelete,
@@ -36,6 +39,9 @@ export const ClipboardListItem = memo(function ClipboardListItem({
   isSelected: boolean
   imageCache: ImageCache
   semanticScore?: number  // AI search similarity score (0.0 - 1.0)
+  contentTruncateLength?: number
+  imagePreviewMaxWidth?: number
+  imagePreviewMaxHeight?: number
   onSelect: (id: number) => void
   onCopy: (item: ClipboardItem) => void
   onDelete: (id: number) => void
@@ -75,7 +81,7 @@ export const ClipboardListItem = memo(function ClipboardListItem({
             {item.item_type === 'text' ? (
               <>
                 <p className="text-sm truncate" style={{ color: colors.text }}>
-                  {formatContent(item.content, item.item_type)}
+                  {formatContent(item.content, item.item_type, contentTruncateLength)}
                 </p>
                 {isSelected && (
                   <p className="text-xs mt-1.5 line-clamp-2 opacity-70" style={{ color: colors.text }}>
@@ -90,8 +96,12 @@ export const ClipboardListItem = memo(function ClipboardListItem({
                   <img
                     src={imageCache[item.content]}
                     alt="Clipboard image"
-                    className="max-w-[120px] max-h-[80px] object-contain rounded border"
-                    style={{ borderColor: colors.border }}
+                    className="object-contain rounded border"
+                    style={{
+                      borderColor: colors.border,
+                      maxWidth: `${imagePreviewMaxWidth}px`,
+                      maxHeight: `${imagePreviewMaxHeight}px`
+                    }}
                   />
                 ) : (
                   <span className="text-xs" style={{ color: colors.textMuted }}>Loading...</span>

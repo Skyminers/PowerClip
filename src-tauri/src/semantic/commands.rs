@@ -77,6 +77,7 @@ pub async fn semantic_search(
     app: tauri::AppHandle,
     query: String,
     limit: usize,
+    min_score: Option<f32>,
 ) -> Result<Vec<SemanticSearchResult>, String> {
     let state = app.state::<SemanticState>();
 
@@ -91,6 +92,15 @@ pub async fn semantic_search(
         }
     }
 
+    // Get min_score from settings if not provided
+    let min_score = match min_score {
+        Some(score) => score,
+        None => {
+            let settings = crate::app_settings::load_settings().unwrap_or_default();
+            settings.min_similarity_score
+        }
+    };
+
     // Ensure model is loaded
     super::model::ensure_model_loaded(&state)?;
 
@@ -100,7 +110,7 @@ pub async fn semantic_search(
     // Search in memory index
     let search_results = {
         let index = state.index.read().map_err(|e| e.to_string())?;
-        index.search(&query_embedding, limit)
+        index.search_with_threshold(&query_embedding, limit, min_score)
     };
 
     if search_results.is_empty() {

@@ -88,8 +88,8 @@ pub fn delete_snippet(conn: &Connection, id: i64) -> Result<bool, rusqlite::Erro
     Ok(affected > 0)
 }
 
-/// Create the snippets table if it doesn't exist.
-pub fn create_table(conn: &Connection) -> Result<(), rusqlite::Error> {
+/// Create the snippets table if it doesn't exist (internal helper for tests).
+fn create_table_sql(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute(
         "CREATE TABLE IF NOT EXISTS snippets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,9 +102,7 @@ pub fn create_table(conn: &Connection) -> Result<(), rusqlite::Error> {
     )?;
     conn.execute("CREATE INDEX IF NOT EXISTS idx_snippets_updated ON snippets(updated_at DESC)", ())?;
     Ok(())
-}
-
-#[cfg(test)]
+}#[cfg(test)]
 mod tests {
     use super::*;
     use rusqlite::Connection;
@@ -112,7 +110,7 @@ mod tests {
     /// Create an in-memory database with snippets table
     fn setup_test_db() -> Connection {
         let conn = Connection::open_in_memory().expect("Failed to create in-memory DB");
-        create_table(&conn).expect("Failed to create snippets table");
+        create_table_sql(&conn).expect("Failed to create snippets table");
         conn
     }
 

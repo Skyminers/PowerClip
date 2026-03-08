@@ -2,8 +2,6 @@
  * Helper functions collection
  */
 
-import { CONTENT_TRUNCATE_LENGTH } from '../constants'
-
 /** Format time as relative time */
 export function formatTime(createdAt: string): string {
   try {
@@ -22,11 +20,11 @@ export function formatTime(createdAt: string): string {
 }
 
 /** Format content for display */
-export function formatContent(content: string, type: string): string {
+export function formatContent(content: string, type: string, truncateLength: number = 50): string {
   if (type === 'text') {
     const text = content.replace(/\n/g, ' ')
-    return text.length > CONTENT_TRUNCATE_LENGTH
-      ? text.slice(0, CONTENT_TRUNCATE_LENGTH) + '...'
+    return text.length > truncateLength
+      ? text.slice(0, truncateLength) + '...'
       : text
   }
   return `[Image] ${content.slice(0, 12)}...`

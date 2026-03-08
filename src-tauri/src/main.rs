@@ -147,6 +147,16 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
         &settings.hotkey_modifiers,
         &settings.hotkey_key,
     )?;
+
+    // Register add-to-snippets hotkey
+    hotkey::register_add_to_snippets_hotkey(
+        &guard,
+        &state.add_to_snippets_hotkey,
+        settings.add_to_snippets_hotkey_enabled,
+        &settings.add_to_snippets_hotkey_modifiers,
+        &settings.add_to_snippets_hotkey_key,
+    )?;
+
     drop(guard);
 
     // Initialize semantic enabled tracker before starting settings watcher

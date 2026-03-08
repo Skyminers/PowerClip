@@ -26,6 +26,20 @@ export interface Settings {
   auto_paste_enabled: boolean;
   extensions: Extension[];
   semantic_search_enabled: boolean;
+  // Add to snippets hotkey settings
+  add_to_snippets_hotkey_enabled: boolean;
+  add_to_snippets_hotkey_modifiers: string;
+  add_to_snippets_hotkey_key: string;
+  // Advanced settings
+  clipboard_poll_interval_ms: number;
+  min_similarity_score: number;
+  max_embeddings_in_memory: number;
+  content_truncate_length: number;
+  image_preview_max_width: number;
+  image_preview_max_height: number;
+  max_history_fetch: number;
+  focus_delay_ms: number;
+  semantic_search_debounce_ms: number;
 }
 
 /// Status of the semantic search feature

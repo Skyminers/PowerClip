@@ -56,6 +56,18 @@ describe('types', () => {
         auto_paste_enabled: false,
         extensions: [],
         semantic_search_enabled: false,
+        add_to_snippets_hotkey_enabled: true,
+        add_to_snippets_hotkey_modifiers: 'Meta+Shift',
+        add_to_snippets_hotkey_key: 'KeyS',
+        clipboard_poll_interval_ms: 100,
+        min_similarity_score: 0.2,
+        max_embeddings_in_memory: 50000,
+        content_truncate_length: 50,
+        image_preview_max_width: 120,
+        image_preview_max_height: 80,
+        max_history_fetch: 10000,
+        focus_delay_ms: 50,
+        semantic_search_debounce_ms: 300,
       }
 
       expect(settings.auto_cleanup_enabled).toBe(true)
@@ -66,6 +78,16 @@ describe('types', () => {
       expect(settings.auto_paste_enabled).toBe(false)
       expect(settings.extensions).toEqual([])
       expect(settings.semantic_search_enabled).toBe(false)
+      expect(settings.add_to_snippets_hotkey_enabled).toBe(true)
+      expect(settings.clipboard_poll_interval_ms).toBe(100)
+      expect(settings.min_similarity_score).toBeCloseTo(0.2)
+      expect(settings.max_embeddings_in_memory).toBe(50000)
+      expect(settings.content_truncate_length).toBe(50)
+      expect(settings.image_preview_max_width).toBe(120)
+      expect(settings.image_preview_max_height).toBe(80)
+      expect(settings.max_history_fetch).toBe(10000)
+      expect(settings.focus_delay_ms).toBe(50)
+      expect(settings.semantic_search_debounce_ms).toBe(300)
     })
   })
 

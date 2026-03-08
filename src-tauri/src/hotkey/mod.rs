@@ -7,14 +7,19 @@ use global_hotkey::GlobalHotKeyManager;
 use global_hotkey::hotkey::{Code, Modifiers, HotKey};
 use global_hotkey::HotKeyState;
 
-use tauri::Manager;
+use tauri::{Manager, Emitter};
 
 use crate::logger;
+
+/// Hotkey IDs for identifying which hotkey was triggered
+pub const HOTKEY_ID_MAIN: u32 = 1;
+pub const HOTKEY_ID_ADD_TO_SNIPPETS: u32 = 2;
 
 /// Hotkey state managed by Tauri.
 pub struct HotkeyState {
     pub manager: std::sync::Mutex<GlobalHotKeyManager>,
     pub current_hotkey: std::sync::Mutex<Option<HotKey>>,
+    pub add_to_snippets_hotkey: std::sync::Mutex<Option<HotKey>>,
     pub handler_installed: std::sync::Mutex<bool>,
 }
 
@@ -27,6 +32,7 @@ impl HotkeyState {
         Ok(Self {
             manager: std::sync::Mutex::new(manager),
             current_hotkey: std::sync::Mutex::new(None),
+            add_to_snippets_hotkey: std::sync::Mutex::new(None),
             handler_installed: std::sync::Mutex::new(false),
         })
     }
@@ -127,8 +133,9 @@ fn parse_key_code(key: &str) -> Option<Code> {
     }
 }
 
-/// Active hotkey ID for the global event handler.
+/// Active hotkey IDs for the global event handler.
 static ACTIVE_HOTKEY_ID: AtomicU32 = AtomicU32::new(0);
+static ADD_TO_SNIPPETS_HOTKEY_ID: AtomicU32 = AtomicU32::new(0);
 
 /// Register a global hotkey with the given modifier and key settings.
 ///
@@ -146,7 +153,7 @@ pub fn register_hotkey_with_settings(
     let key_code = parse_key_code(key).ok_or_else(|| format!("Invalid key code: {}", key))?;
     let hotkey = HotKey::new(Some(parsed_modifiers), key_code);
 
-    logger::info("Hotkey", &format!("Registering hotkey: {}+{}", modifiers, key));
+    logger::info("Hotkey", &format!("Registering main hotkey: {}+{}", modifiers, key));
 
     let mut guard = current_hotkey.lock().map_err(|e| e.to_string())?;
 
@@ -170,19 +177,68 @@ pub fn register_hotkey_with_settings(
     if !*installed {
         let win = window.clone();
         GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
-            let active_id = ACTIVE_HOTKEY_ID.load(Ordering::SeqCst);
+            let main_id = ACTIVE_HOTKEY_ID.load(Ordering::SeqCst);
+            let snippets_id = ADD_TO_SNIPPETS_HOTKEY_ID.load(Ordering::SeqCst);
+
             logger::debug("Hotkey", &format!(
-                "Event received: id={}, active_id={}, state={:?}",
-                event.id, active_id, event.state
+                "Event received: id={}, main_id={}, snippets_id={}, state={:?}",
+                event.id, main_id, snippets_id, event.state
             ));
-            if event.id == active_id && event.state == HotKeyState::Pressed {
-                logger::info("Hotkey", "Hotkey triggered, showing window");
-                let app_handle = win.app_handle();
-                let _ = crate::window::show_and_notify(app_handle, &win);
+
+            if event.state == HotKeyState::Pressed {
+                if event.id == main_id {
+                    logger::info("Hotkey", "Main hotkey triggered, showing window");
+                    let app_handle = win.app_handle();
+                    let _ = crate::window::show_and_notify(app_handle, &win);
+                } else if event.id == snippets_id {
+                    logger::info("Hotkey", "Add to snippets hotkey triggered");
+                    let app_handle = win.app_handle();
+                    let _ = app_handle.emit("powerclip:add-to-snippets-hotkey", ());
+                }
             }
         }));
         *installed = true;
     }
+
+    Ok(())
+}
+
+/// Register the "add to snippets" hotkey.
+pub fn register_add_to_snippets_hotkey(
+    manager: &GlobalHotKeyManager,
+    add_to_snippets_hotkey: &std::sync::Mutex<Option<HotKey>>,
+    enabled: bool,
+    modifiers: &str,
+    key: &str,
+) -> Result<(), String> {
+    let mut guard = add_to_snippets_hotkey.lock().map_err(|e| e.to_string())?;
+
+    // Unregister old hotkey if exists
+    if let Some(old_hotkey) = guard.take() {
+        if let Err(e) = manager.unregister(old_hotkey) {
+            logger::error("Hotkey", &format!("Failed to unregister old add-to-snippets hotkey: {}", e));
+        }
+    }
+
+    if !enabled {
+        logger::info("Hotkey", "Add to snippets hotkey disabled");
+        ADD_TO_SNIPPETS_HOTKEY_ID.store(0, Ordering::SeqCst);
+        return Ok(());
+    }
+
+    let parsed_modifiers = parse_modifiers(modifiers);
+    let key_code = parse_key_code(key).ok_or_else(|| format!("Invalid key code: {}", key))?;
+    let hotkey = HotKey::new(Some(parsed_modifiers), key_code);
+
+    logger::info("Hotkey", &format!("Registering add-to-snippets hotkey: {}+{}", modifiers, key));
+
+    manager.register(hotkey).map_err(|e: global_hotkey::Error| {
+        logger::error("Hotkey", &format!("Failed to register add-to-snippets hotkey: {}", e));
+        e.to_string()
+    })?;
+
+    *guard = Some(hotkey);
+    ADD_TO_SNIPPETS_HOTKEY_ID.store(hotkey.id(), Ordering::SeqCst);
 
     Ok(())
 }
