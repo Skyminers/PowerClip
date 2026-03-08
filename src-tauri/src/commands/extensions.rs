@@ -4,7 +4,14 @@ use std::process::Stdio;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 
+#[cfg(target_os = "windows")]
+use tokio::process::windows::CommandExt;
+
 use crate::logger;
+
+/// CREATE_NO_WINDOW flag to prevent console window from appearing
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 /// Run an extension command, piping `content` to its stdin.
 ///
@@ -13,13 +20,22 @@ use crate::logger;
 pub async fn run_extension(command: String, content: String, timeout: i64) -> Result<String, String> {
     logger::info("Extension", &format!("Running: {}", command));
 
+    #[allow(unused_mut)]
     let mut child = if cfg!(target_os = "windows") {
-        Command::new("cmd")
-            .args(["/C", &command])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
+        #[cfg(target_os = "windows")]
+        {
+            Command::new("cmd")
+                .args(["/C", &command])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            unreachable!()
+        }
     } else {
         Command::new("sh")
             .args(["-c", &command])
