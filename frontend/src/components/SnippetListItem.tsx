@@ -16,7 +16,8 @@ export const SnippetListItem = memo(function SnippetListItem({
   isSelected,
   onSelect,
   onCopy,
-  onDelete
+  onDelete,
+  onEdit
 }: {
   snippet: Snippet
   index: number
@@ -24,9 +25,10 @@ export const SnippetListItem = memo(function SnippetListItem({
   onSelect: (id: number) => void
   onCopy: (snippet: Snippet) => void
   onDelete: (id: number) => void
+  onEdit: (snippet: Snippet) => void
 }) {
   const [isDeleting, setIsDeleting] = useState(false)
-  const [showDelete, setShowDelete] = useState(false)
+  const [showActions, setShowActions] = useState(false)
 
   const handleDeleteClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -35,6 +37,11 @@ export const SnippetListItem = memo(function SnippetListItem({
       onDelete(snippet.id)
     }
   }, [snippet.id, isDeleting, onDelete])
+
+  const handleEditClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onEdit(snippet)
+  }, [snippet, onEdit])
 
   // Display alias if available, otherwise show the content
   const displayName = snippet.alias || snippet.content
@@ -46,8 +53,8 @@ export const SnippetListItem = memo(function SnippetListItem({
       style={{ backgroundColor: isSelected ? colors.selected : 'transparent' }}
       onClick={() => !isDeleting && onSelect(snippet.id)}
       onDoubleClick={() => !isDeleting && onCopy(snippet)}
-      onMouseEnter={() => setShowDelete(true)}
-      onMouseLeave={() => setShowDelete(false)}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
     >
       <div className="flex items-start justify-between gap-3">
         {/* Content area */}
@@ -74,18 +81,30 @@ export const SnippetListItem = memo(function SnippetListItem({
 
         {/* Metadata area */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Delete button */}
-          {showDelete && !isDeleting && (
-            <button
-              onClick={handleDeleteClick}
-              className="p-1 rounded hover:bg-red-500/20 transition-colors"
-              style={{ color: '#ef4444' }}
-              title="Delete"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          {/* Action buttons */}
+          {showActions && !isDeleting && (
+            <>
+              <button
+                onClick={handleEditClick}
+                className="p-1 rounded hover:bg-white/10 transition-colors"
+                style={{ color: colors.textMuted }}
+                title="Edit"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+              <button
+                onClick={handleDeleteClick}
+                className="p-1 rounded hover:bg-red-500/20 transition-colors"
+                style={{ color: '#ef4444' }}
+                title="Delete"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </>
           )}
           {index < MAX_SHORTCUT_INDEX && (
             <span

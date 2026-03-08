@@ -18,7 +18,8 @@ import {
   ExtensionSelector,
   SemanticToggle,
   SnippetListItem,
-  AddSnippetDialog
+  AddSnippetDialog,
+  SnippetDialog
 } from './components'
 
 const colors = theme.colors
@@ -39,6 +40,8 @@ function App() {
   const [snippets, setSnippets] = useState<Snippet[]>([])
   const [selectedSnippetId, setSelectedSnippetId] = useState<number | null>(null)
   const [addDialogItem, setAddDialogItem] = useState<ClipboardItem | null>(null)
+  const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null)
+  const [showAddSnippetDialog, setShowAddSnippetDialog] = useState(false)
 
   const [settings, setSettings] = useState<Settings>({
     auto_cleanup_enabled: false,
@@ -187,6 +190,30 @@ function App() {
     setAddDialogItem(null)
   }, [loadSnippets])
 
+  // Update snippet
+  const handleUpdateSnippet = useCallback(async (id: number, content: string, alias: string | null) => {
+    try {
+      await invoke('update_snippet', { id, content, alias })
+      await loadSnippets()
+    } catch (error) {
+      console.error('Failed to update snippet:', error)
+    }
+    setEditingSnippet(null)
+  }, [loadSnippets])
+
+  // Handle edit snippet
+  const handleEditSnippet = useCallback((snippet: Snippet) => {
+    setEditingSnippet(snippet)
+  }, [])
+
+  // Handle add new snippet from snippets view
+  const handleAddNewSnippet = useCallback((content: string, alias: string | null) => {
+    invoke('add_snippet', { content, alias })
+      .then(() => loadSnippets())
+      .catch(error => console.error('Failed to add snippet:', error))
+    setShowAddSnippetDialog(false)
+  }, [loadSnippets])
+
   // Load settings
   const loadSettings = useCallback(() => {
     invoke<Settings>('get_settings')
@@ -245,6 +272,14 @@ function App() {
           setAddDialogItem(null)
           return
         }
+        if (editingSnippet) {
+          setEditingSnippet(null)
+          return
+        }
+        if (showAddSnippetDialog) {
+          setShowAddSnippetDialog(false)
+          return
+        }
         setSearchQuery('')
         invoke('hide_window').catch(() => {})
         return
@@ -252,7 +287,7 @@ function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [addDialogItem])
+  }, [addDialogItem, editingSnippet, showAddSnippetDialog])
 
   // List keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -497,6 +532,18 @@ function App() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
             </svg>
           </button>
+          {viewMode === 'snippets' && (
+            <button
+              onClick={() => setShowAddSnippetDialog(true)}
+              className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag"
+              title="Add new quick command"
+              style={{ color: colors.textMuted }}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={() => invoke('open_settings_file').catch(() => {})}
             className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag"
@@ -525,6 +572,25 @@ function App() {
           item={addDialogItem}
           onConfirm={handleConfirmAddSnippet}
           onCancel={() => setAddDialogItem(null)}
+        />
+      )}
+
+      {/* Edit Snippet Dialog */}
+      {editingSnippet && (
+        <SnippetDialog
+          mode="edit"
+          snippet={editingSnippet}
+          onConfirm={(content, alias) => handleUpdateSnippet(editingSnippet.id, content, alias)}
+          onCancel={() => setEditingSnippet(null)}
+        />
+      )}
+
+      {/* Add New Snippet Dialog */}
+      {showAddSnippetDialog && (
+        <SnippetDialog
+          mode="add"
+          onConfirm={handleAddNewSnippet}
+          onCancel={() => setShowAddSnippetDialog(false)}
         />
       )}
 
@@ -567,6 +633,7 @@ function App() {
                   onSelect={setSelectedSnippetId}
                   onCopy={copySnippet}
                   onDelete={deleteSnippet}
+                  onEdit={handleEditSnippet}
                 />
               ))}
             {snippets.filter(s =>
