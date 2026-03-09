@@ -2,18 +2,14 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use global_hotkey::hotkey::{Code, HotKey, Modifiers};
 use global_hotkey::GlobalHotKeyEvent;
 use global_hotkey::GlobalHotKeyManager;
-use global_hotkey::hotkey::{Code, Modifiers, HotKey};
 use global_hotkey::HotKeyState;
 
-use tauri::{Manager, Emitter};
+use tauri::{Emitter, Manager};
 
 use crate::logger;
-
-/// Hotkey IDs for identifying which hotkey was triggered
-pub const HOTKEY_ID_MAIN: u32 = 1;
-pub const HOTKEY_ID_ADD_TO_SNIPPETS: u32 = 2;
 
 /// Hotkey state managed by Tauri.
 pub struct HotkeyState {
@@ -153,7 +149,10 @@ pub fn register_hotkey_with_settings(
     let key_code = parse_key_code(key).ok_or_else(|| format!("Invalid key code: {}", key))?;
     let hotkey = HotKey::new(Some(parsed_modifiers), key_code);
 
-    logger::info("Hotkey", &format!("Registering main hotkey: {}+{}", modifiers, key));
+    logger::info(
+        "Hotkey",
+        &format!("Registering main hotkey: {}+{}", modifiers, key),
+    );
 
     let mut guard = current_hotkey.lock().map_err(|e| e.to_string())?;
 
@@ -163,10 +162,12 @@ pub fn register_hotkey_with_settings(
         }
     }
 
-    manager.register(hotkey).map_err(|e: global_hotkey::Error| {
-        logger::error("Hotkey", &format!("Failed to register hotkey: {}", e));
-        e.to_string()
-    })?;
+    manager
+        .register(hotkey)
+        .map_err(|e: global_hotkey::Error| {
+            logger::error("Hotkey", &format!("Failed to register hotkey: {}", e));
+            e.to_string()
+        })?;
 
     *guard = Some(hotkey);
     drop(guard);
@@ -180,10 +181,13 @@ pub fn register_hotkey_with_settings(
             let main_id = ACTIVE_HOTKEY_ID.load(Ordering::SeqCst);
             let snippets_id = ADD_TO_SNIPPETS_HOTKEY_ID.load(Ordering::SeqCst);
 
-            logger::debug("Hotkey", &format!(
-                "Event received: id={}, main_id={}, snippets_id={}, state={:?}",
-                event.id, main_id, snippets_id, event.state
-            ));
+            logger::debug(
+                "Hotkey",
+                &format!(
+                    "Event received: id={}, main_id={}, snippets_id={}, state={:?}",
+                    event.id, main_id, snippets_id, event.state
+                ),
+            );
 
             if event.state == HotKeyState::Pressed {
                 if event.id == main_id {
@@ -216,7 +220,10 @@ pub fn register_add_to_snippets_hotkey(
     // Unregister old hotkey if exists
     if let Some(old_hotkey) = guard.take() {
         if let Err(e) = manager.unregister(old_hotkey) {
-            logger::error("Hotkey", &format!("Failed to unregister old add-to-snippets hotkey: {}", e));
+            logger::error(
+                "Hotkey",
+                &format!("Failed to unregister old add-to-snippets hotkey: {}", e),
+            );
         }
     }
 
@@ -230,12 +237,20 @@ pub fn register_add_to_snippets_hotkey(
     let key_code = parse_key_code(key).ok_or_else(|| format!("Invalid key code: {}", key))?;
     let hotkey = HotKey::new(Some(parsed_modifiers), key_code);
 
-    logger::info("Hotkey", &format!("Registering add-to-snippets hotkey: {}+{}", modifiers, key));
+    logger::info(
+        "Hotkey",
+        &format!("Registering add-to-snippets hotkey: {}+{}", modifiers, key),
+    );
 
-    manager.register(hotkey).map_err(|e: global_hotkey::Error| {
-        logger::error("Hotkey", &format!("Failed to register add-to-snippets hotkey: {}", e));
-        e.to_string()
-    })?;
+    manager
+        .register(hotkey)
+        .map_err(|e: global_hotkey::Error| {
+            logger::error(
+                "Hotkey",
+                &format!("Failed to register add-to-snippets hotkey: {}", e),
+            );
+            e.to_string()
+        })?;
 
     *guard = Some(hotkey);
     ADD_TO_SNIPPETS_HOTKEY_ID.store(hotkey.id(), Ordering::SeqCst);

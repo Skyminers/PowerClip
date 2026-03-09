@@ -5,7 +5,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 
 #[cfg(target_os = "windows")]
-use tokio::process::windows::CommandExt;
+use std::os::windows::process::CommandExt;
 
 use crate::logger;
 

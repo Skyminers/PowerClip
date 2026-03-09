@@ -88,26 +88,29 @@ pub fn delete_snippet(conn: &Connection, id: i64) -> Result<bool, rusqlite::Erro
     Ok(affected > 0)
 }
 
-/// Create the snippets table if it doesn't exist (internal helper for tests).
-fn create_table_sql(conn: &Connection) -> Result<(), rusqlite::Error> {
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS snippets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            content TEXT NOT NULL,
-            alias TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )",
-        (),
-    )?;
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_snippets_updated ON snippets(updated_at DESC)", ())?;
-    Ok(())
-}#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use rusqlite::Connection;
 
-    /// Create an in-memory database with snippets table
+    fn create_table_sql(conn: &Connection) -> Result<(), rusqlite::Error> {
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS snippets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content TEXT NOT NULL,
+                alias TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )",
+            (),
+        )?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_snippets_updated ON snippets(updated_at DESC)",
+            (),
+        )?;
+        Ok(())
+    }
+
     fn setup_test_db() -> Connection {
         let conn = Connection::open_in_memory().expect("Failed to create in-memory DB");
         create_table_sql(&conn).expect("Failed to create snippets table");
@@ -193,11 +196,10 @@ mod tests {
     fn test_update_snippet_clear_alias() {
         let conn = setup_test_db();
 
-        let original = add_snippet(&conn, "command", Some("Alias"))
-            .expect("Failed to add snippet");
+        let original = add_snippet(&conn, "command", Some("Alias")).expect("Failed to add snippet");
 
-        let updated = update_snippet(&conn, original.id, "command", None)
-            .expect("Failed to update snippet");
+        let updated =
+            update_snippet(&conn, original.id, "command", None).expect("Failed to update snippet");
 
         assert!(updated);
 
@@ -209,8 +211,8 @@ mod tests {
     fn test_update_nonexistent_snippet() {
         let conn = setup_test_db();
 
-        let updated = update_snippet(&conn, 999, "command", None)
-            .expect("Failed to execute update");
+        let updated =
+            update_snippet(&conn, 999, "command", None).expect("Failed to execute update");
 
         assert!(!updated); // Should return false for non-existent snippet
     }
@@ -257,8 +259,8 @@ mod tests {
         let content = "echo '你好世界 🌍'";
         let alias = "中文命令";
 
-        let snippet = add_snippet(&conn, content, Some(alias))
-            .expect("Failed to add snippet with unicode");
+        let snippet =
+            add_snippet(&conn, content, Some(alias)).expect("Failed to add snippet with unicode");
 
         assert_eq!(snippet.content, content);
         assert_eq!(snippet.alias, Some(alias.to_string()));
@@ -294,8 +296,8 @@ mod tests {
         let conn = setup_test_db();
 
         let content = "line1\nline2\nline3";
-        let snippet = add_snippet(&conn, content, None)
-            .expect("Failed to add snippet with newlines");
+        let snippet =
+            add_snippet(&conn, content, None).expect("Failed to add snippet with newlines");
 
         assert_eq!(snippet.content, content);
     }

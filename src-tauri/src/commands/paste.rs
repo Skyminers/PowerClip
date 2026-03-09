@@ -51,7 +51,7 @@ pub async fn simulate_paste() -> Result<(), String> {
     {
         use windows::Win32::UI::Input::KeyboardAndMouse::{
             SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
-            KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL, VK_V,
+            KEYEVENTF_KEYUP, VK_CONTROL, VK_V,
         };
 
         let inputs = [

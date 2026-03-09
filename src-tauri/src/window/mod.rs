@@ -118,6 +118,7 @@ pub fn setup_window_behavior(app: &tauri::App) -> Result<(), String> {
 pub fn setup_window_transparency(app: &tauri::App) -> Result<(), String> {
     use tauri::Manager;
 
+    #[allow(unused_variables)]
     let Some(window) = app.get_webview_window("main") else {
         return Ok(());
     };
