@@ -64,6 +64,11 @@ body {
   cursor: default;
 }
 
+/* Resize handle - must explicitly disable drag */
+.resize-handle {
+  -webkit-app-region: no-drag;
+}
+
 /* Hide scrollbar completely */
 .scrollbar-thin {
   scrollbar-width: none !important;
@@ -173,15 +178,15 @@ li {
   border-bottom-color: rgba(255, 255, 255, 0.6);
 }
 
-/* Entire window draggable */
-.window-wrapper {
-  -webkit-app-region: drag;
-}
-
 /* Interactive elements not draggable */
 .window-wrapper button,
 .window-wrapper input,
 .window-wrapper .no-drag,
-.window-wrapper .resize-handle {
+.resize-handle {
   -webkit-app-region: no-drag;
+}
+
+/* Window draggable */
+.window-wrapper {
+  -webkit-app-region: drag;
 }
