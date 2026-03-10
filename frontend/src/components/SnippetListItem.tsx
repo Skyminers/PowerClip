@@ -2,7 +2,7 @@
  * Snippet list item component - displays a quick command item
  */
 
-import { memo, useState, useCallback } from 'react'
+import { memo, useState, useCallback, forwardRef } from 'react'
 import type { Snippet } from '../types'
 import { theme } from '../theme'
 import { formatTime } from '../utils/helpers'
@@ -10,15 +10,7 @@ import { MAX_SHORTCUT_INDEX } from '../constants'
 
 const colors = theme.colors
 
-export const SnippetListItem = memo(function SnippetListItem({
-  snippet,
-  index,
-  isSelected,
-  onSelect,
-  onCopy,
-  onDelete,
-  onEdit
-}: {
+export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
   snippet: Snippet
   index: number
   isSelected: boolean
@@ -26,7 +18,19 @@ export const SnippetListItem = memo(function SnippetListItem({
   onCopy: (snippet: Snippet) => void
   onDelete: (id: number) => void
   onEdit: (snippet: Snippet) => void
-}) {
+  style?: React.CSSProperties
+  'data-index'?: number
+}>(function SnippetListItem({
+  snippet,
+  index,
+  isSelected,
+  onSelect,
+  onCopy,
+  onDelete,
+  onEdit,
+  style,
+  'data-index': dataIndex
+}, ref) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showActions, setShowActions] = useState(false)
 
@@ -48,9 +52,11 @@ export const SnippetListItem = memo(function SnippetListItem({
 
   return (
     <li
+      ref={ref}
       data-id={snippet.id}
-      className={`relative px-4 py-3 cursor-pointer transition-all duration-150 fade-in ${isSelected ? 'selected-pulse' : ''} ${isDeleting ? 'opacity-50' : ''}`}
-      style={{ backgroundColor: isSelected ? colors.selected : 'transparent' }}
+      data-index={dataIndex}
+      className={`relative px-4 py-3 cursor-pointer ${isSelected ? 'selected-pulse' : ''} ${isDeleting ? 'opacity-50' : ''}`}
+      style={{ backgroundColor: isSelected ? colors.selected : 'transparent', ...style }}
       onClick={() => !isDeleting && onSelect(snippet.id)}
       onDoubleClick={() => !isDeleting && onCopy(snippet)}
       onMouseEnter={() => setShowActions(true)}
@@ -124,4 +130,4 @@ export const SnippetListItem = memo(function SnippetListItem({
       </div>
     </li>
   )
-})
+}))

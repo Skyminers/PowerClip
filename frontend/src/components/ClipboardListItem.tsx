@@ -2,7 +2,7 @@
  * Clipboard list item component
  */
 
-import { memo, useState, useCallback } from 'react'
+import { memo, useState, useCallback, forwardRef } from 'react'
 import type { ClipboardItem, ImageCache } from '../types'
 import { theme } from '../theme'
 import { formatContent, formatTime, getPreview } from '../utils/helpers'
@@ -20,20 +20,7 @@ function formatScore(score: number): string {
   return (score * 100).toFixed(2) + '%'
 }
 
-export const ClipboardListItem = memo(function ClipboardListItem({
-  item,
-  index,
-  isSelected,
-  imageCache,
-  semanticScore,
-  contentTruncateLength = 50,
-  imagePreviewMaxWidth = 120,
-  imagePreviewMaxHeight = 80,
-  onSelect,
-  onCopy,
-  onDelete,
-  onAddToSnippets
-}: {
+export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   item: ClipboardItem
   index: number
   isSelected: boolean
@@ -46,7 +33,24 @@ export const ClipboardListItem = memo(function ClipboardListItem({
   onCopy: (item: ClipboardItem) => void
   onDelete: (id: number) => void
   onAddToSnippets?: (item: ClipboardItem) => void
-}) {
+  style?: React.CSSProperties
+  'data-index'?: number
+}>(function ClipboardListItem({
+  item,
+  index,
+  isSelected,
+  imageCache,
+  semanticScore,
+  contentTruncateLength = 50,
+  imagePreviewMaxWidth = 120,
+  imagePreviewMaxHeight = 80,
+  onSelect,
+  onCopy,
+  onDelete,
+  onAddToSnippets,
+  style,
+  'data-index': dataIndex
+}, ref) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showActions, setShowActions] = useState(false)
 
@@ -60,9 +64,11 @@ export const ClipboardListItem = memo(function ClipboardListItem({
 
   return (
     <li
+      ref={ref}
       data-id={item.id}
-      className={`relative px-4 py-3 cursor-pointer transition-all duration-150 fade-in ${isSelected ? 'selected-pulse' : ''} ${isDeleting ? 'opacity-50' : ''}`}
-      style={{ backgroundColor: isSelected ? colors.selected : 'transparent' }}
+      data-index={dataIndex}
+      className={`relative px-4 py-3 cursor-pointer ${isSelected ? 'selected-pulse' : ''} ${isDeleting ? 'opacity-50' : ''}`}
+      style={{ backgroundColor: isSelected ? colors.selected : 'transparent', ...style }}
       onClick={() => !isDeleting && onSelect(item.id)}
       onDoubleClick={() => !isDeleting && onCopy(item)}
       onMouseEnter={() => setShowActions(true)}
@@ -173,4 +179,4 @@ export const ClipboardListItem = memo(function ClipboardListItem({
       </div>
     </li>
   )
-})
+}))

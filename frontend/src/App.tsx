@@ -3,11 +3,13 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { invoke } from '@tauri-apps/api/core'
 import type { ClipboardItem, Settings, ImageCache, SemanticStatus, Snippet } from './types'
 import { theme } from './theme'
 import { isDarwin } from './utils/platform'
 import { useSemanticSearch } from './hooks/useSemanticSearch'
+import { useDebouncedValue } from './hooks/useDebouncedValue'
 
 import {
   ResizeHandle,
@@ -86,6 +88,9 @@ function App() {
   // Derived state
   const searchLower = useMemo(() => searchQuery.toLowerCase(), [searchQuery])
 
+  // Debounced search query for filtering (150ms delay)
+  const debouncedSearchLower = useDebouncedValue(searchLower, 150)
+
   // Display items based on search mode
   const filteredItems = useMemo(() => {
     if (semanticMode && semanticResults.length > 0 && searchQuery.length > 0) {
@@ -101,6 +106,49 @@ function App() {
     }
     return new Map<number, number>()
   }, [semanticMode, semanticResults])
+
+  // Cached filtered snippets - used in list render, empty state, and StatusBar
+  const filteredSnippets = useMemo(() =>
+    snippets.filter(s =>
+      debouncedSearchLower.length === 0 ||
+      s.content.toLowerCase().includes(debouncedSearchLower) ||
+      (s.alias && s.alias.toLowerCase().includes(debouncedSearchLower))
+    ),
+    [snippets, debouncedSearchLower]
+  )
+
+  // Virtual scrolling for history list
+  const historyVirtualizer = useVirtualizer({
+    count: filteredItems.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: (index) => {
+      const item = filteredItems[index]
+      // Image items need more height (preview height + padding + text)
+      if (item?.item_type === 'image') {
+        return settings.image_preview_max_height + 40
+      }
+      return 56
+    },
+    overscan: 5,
+    measureElement: (element) => element?.getBoundingClientRect().height ?? 56,
+  })
+
+  // Virtual scrolling for snippets list
+  const snippetsVirtualizer = useVirtualizer({
+    count: filteredSnippets.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 56,
+    overscan: 5,
+  })
+
+  // Re-measure items when filtered list changes (e.g., during search)
+  useEffect(() => {
+    historyVirtualizer.measure()
+  }, [filteredItems, historyVirtualizer])
+
+  useEffect(() => {
+    snippetsVirtualizer.measure()
+  }, [filteredSnippets, snippetsVirtualizer])
 
   // Copy item to clipboard
   const copyItem = useCallback(async (item: ClipboardItem) => {
@@ -295,11 +343,6 @@ function App() {
 
     // Handle snippets mode
     if (viewModeRef.current === 'snippets') {
-      const filteredSnippets = snippets.filter(s =>
-        searchQuery.length === 0 ||
-        s.content.toLowerCase().includes(searchLower) ||
-        (s.alias && s.alias.toLowerCase().includes(searchLower))
-      )
       const idx = filteredSnippets.findIndex(s => s.id === selectedSnippetId)
 
       switch (e.key) {
@@ -366,22 +409,38 @@ function App() {
           if (item) copyItem(item)
         }
     }
-  }, [filteredItems, selectedId, selectedSnippetId, snippets, searchLower, searchQuery, settings.extensions.length, copyItem, copySnippet])
+  }, [filteredItems, filteredSnippets, selectedId, selectedSnippetId, settings.extensions.length, copyItem, copySnippet])
 
   // Load history
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (): Promise<ClipboardItem[] | null> => {
     try {
       const result = await invoke<ClipboardItem[]>('get_history', { limit: settings.max_history_fetch })
       setItems(result)
 
-      // Load images asynchronously without blocking
-      result.filter(i => i.item_type === 'image').forEach(item => {
-        invoke<string>('get_image_asset_url', { relativePath: item.content })
-          .then(url => setImageCache(prev => ({ ...prev, [item.content]: url })))
-          .catch((error) => console.error('[PowerClip] Failed to load image:', error))
-      })
+      // Load images asynchronously in batch
+      const imageItems = result.filter(i => i.item_type === 'image')
+      if (imageItems.length > 0) {
+        Promise.all(
+          imageItems.map(item =>
+            invoke<string>('get_image_asset_url', { relativePath: item.content })
+              .then(url => [item.content, url] as [string, string])
+              .catch(() => null)
+          )
+        ).then(entries => {
+          const validEntries = entries.filter((e): e is [string, string] => e !== null)
+          if (validEntries.length > 0) {
+            setImageCache(prev => {
+              const newCache = { ...prev }
+              validEntries.forEach(([key, url]) => { newCache[key] = url })
+              return newCache
+            })
+          }
+        })
+      }
+      return result
     } catch (error) {
       console.error('[PowerClip] Failed to load history:', error)
+      return null
     }
   }, [settings.max_history_fetch])
 
@@ -454,10 +513,18 @@ function App() {
 
   // Reset on window show
   useEffect(() => {
-    const handler = () => {
+    const handler = async () => {
       setShowExtensions(false)
       setViewMode('history')
-      loadHistory()
+      setSearchQuery('')
+      setSelectedSnippetId(null)
+      const items = await loadHistory()
+      // Select the first (newest) item after loading history
+      if (items && items.length > 0) {
+        setSelectedId(items[0].id)
+      } else {
+        setSelectedId(null)
+      }
       loadSnippets()
       if (listRef.current) listRef.current.scrollTop = 0
       setTimeout(() => inputRef.current?.focus(), settings.focus_delay_ms)
@@ -597,50 +664,60 @@ function App() {
       <ul ref={listRef} className="flex-1 overflow-y-auto scrollbar-thin" style={{ backgroundColor: colors.bg }} onKeyDown={handleKeyDown} tabIndex={0}>
         {viewMode === 'history' ? (
           <>
-            {filteredItems.map((item, index) => (
-              <ClipboardListItem
-                key={item.id}
-                item={item}
-                index={index}
-                isSelected={selectedId === item.id}
-                imageCache={imageCache}
-                semanticScore={semanticScoreMap.get(item.id)}
-                contentTruncateLength={settings.content_truncate_length}
-                imagePreviewMaxWidth={settings.image_preview_max_width}
-                imagePreviewMaxHeight={settings.image_preview_max_height}
-                onSelect={setSelectedId}
-                onCopy={copyItem}
-                onDelete={deleteItem}
-                onAddToSnippets={handleAddToSnippets}
-              />
-            ))}
-            {filteredItems.length === 0 && <EmptyState hasSearchQuery={searchQuery.length > 0} semanticMode={semanticMode} />}
+            {filteredItems.length > 0 ? (
+              <div style={{ height: `${historyVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+                {historyVirtualizer.getVirtualItems().map(virtualRow => {
+                  const item = filteredItems[virtualRow.index]
+                  return (
+                    <ClipboardListItem
+                      key={item.id}
+                      ref={historyVirtualizer.measureElement}
+                      item={item}
+                      index={virtualRow.index}
+                      isSelected={selectedId === item.id}
+                      imageCache={imageCache}
+                      semanticScore={semanticScoreMap.get(item.id)}
+                      contentTruncateLength={settings.content_truncate_length}
+                      imagePreviewMaxWidth={settings.image_preview_max_width}
+                      imagePreviewMaxHeight={settings.image_preview_max_height}
+                      onSelect={setSelectedId}
+                      onCopy={copyItem}
+                      onDelete={deleteItem}
+                      onAddToSnippets={handleAddToSnippets}
+                      style={{ position: 'absolute', transform: `translateY(${virtualRow.start}px)`, width: '100%' }}
+                      data-index={virtualRow.index}
+                    />
+                  )
+                })}
+              </div>
+            ) : (
+              <EmptyState hasSearchQuery={searchQuery.length > 0} semanticMode={semanticMode} />
+            )}
           </>
         ) : (
           <>
-            {snippets
-              .filter(s =>
-                searchQuery.length === 0 ||
-                s.content.toLowerCase().includes(searchLower) ||
-                (s.alias && s.alias.toLowerCase().includes(searchLower))
-              )
-              .map((snippet, index) => (
-                <SnippetListItem
-                  key={snippet.id}
-                  snippet={snippet}
-                  index={index}
-                  isSelected={selectedSnippetId === snippet.id}
-                  onSelect={setSelectedSnippetId}
-                  onCopy={copySnippet}
-                  onDelete={deleteSnippet}
-                  onEdit={handleEditSnippet}
-                />
-              ))}
-            {snippets.filter(s =>
-              searchQuery.length === 0 ||
-              s.content.toLowerCase().includes(searchLower) ||
-              (s.alias && s.alias.toLowerCase().includes(searchLower))
-            ).length === 0 && (
+            {filteredSnippets.length > 0 ? (
+              <div style={{ height: `${snippetsVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+                {snippetsVirtualizer.getVirtualItems().map(virtualRow => {
+                  const snippet = filteredSnippets[virtualRow.index]
+                  return (
+                    <SnippetListItem
+                      key={snippet.id}
+                      ref={snippetsVirtualizer.measureElement}
+                      snippet={snippet}
+                      index={virtualRow.index}
+                      isSelected={selectedSnippetId === snippet.id}
+                      onSelect={setSelectedSnippetId}
+                      onCopy={copySnippet}
+                      onDelete={deleteSnippet}
+                      onEdit={handleEditSnippet}
+                      style={{ position: 'absolute', transform: `translateY(${virtualRow.start}px)`, width: '100%' }}
+                      data-index={virtualRow.index}
+                    />
+                  )
+                })}
+              </div>
+            ) : (
               <div className="flex flex-col items-center justify-center py-16 px-4">
                 <svg className="w-12 h-12 mb-4" style={{ color: colors.textMuted }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -659,11 +736,7 @@ function App() {
 
       <StatusBar
         totalCount={viewMode === 'snippets' ? snippets.length : items.length}
-        filteredCount={viewMode === 'snippets' ? snippets.filter(s =>
-          searchQuery.length === 0 ||
-          s.content.toLowerCase().includes(searchLower) ||
-          (s.alias && s.alias.toLowerCase().includes(searchLower))
-        ).length : filteredItems.length}
+        filteredCount={viewMode === 'snippets' ? filteredSnippets.length : filteredItems.length}
         hasSearchQuery={searchQuery.length > 0}
         isDarwin={isDarwin}
         semanticMode={semanticMode}
