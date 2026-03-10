@@ -6,6 +6,12 @@ pub mod config;
 #[cfg(target_os = "macos")]
 pub mod macos;
 
+#[cfg(target_os = "windows")]
+pub mod windows;
+
+#[cfg(target_os = "windows")]
+use windows::Win32::Foundation::HWND;
+
 use std::sync::Mutex;
 
 use crate::logger;
@@ -38,8 +44,19 @@ pub fn hide(window: &tauri::WebviewWindow) -> Result<(), String> {
 /// Show window, focus it, and notify frontend.
 pub fn show_and_notify(app: &tauri::AppHandle, window: &tauri::WebviewWindow) -> Result<(), String> {
     #[cfg(target_os = "macos")]
-    if let Ok(mut lock) = PREVIOUS_APP_BUNDLE_ID.lock() {
-        *lock = macos::get_frontmost_bundle_id();
+    {
+        // Save the previous app before activating ourselves
+        if let Ok(mut lock) = PREVIOUS_APP_BUNDLE_ID.lock() {
+            *lock = macos::get_frontmost_bundle_id();
+        }
+        // Activate our app first to ensure window renders correctly
+        macos::activate_own_app();
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows, we bring the window to foreground after showing
+        // This ensures proper rendering when awakened via global hotkey
     }
 
     window.show().map_err(|e| {
@@ -47,6 +64,14 @@ pub fn show_and_notify(app: &tauri::AppHandle, window: &tauri::WebviewWindow) ->
         e.to_string()
     })?;
     let _ = window.set_focus();
+
+    #[cfg(target_os = "windows")]
+    {
+        // Force bring to foreground after show
+        if let Ok(hwnd) = window.hwnd() {
+            windows::bring_to_foreground(HWND(hwnd.0));
+        }
+    }
 
     use tauri::Emitter;
     let _ = app.emit_to("main", "powerclip:window-shown", ());

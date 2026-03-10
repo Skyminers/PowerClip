@@ -65,10 +65,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), String> {
             match event.id.as_ref() {
                 "show" => {
                     if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                        use tauri::Emitter;
-                        let _ = app.emit_to("main", "powerclip:window-shown", ());
+                        let _ = window::show_and_notify(app, &window);
                     }
                 }
                 "quit" => std::process::exit(0),
@@ -82,10 +79,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), String> {
             } = event
             {
                 if let Some(window) = tray.app_handle().get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                    use tauri::Emitter;
-                    let _ = tray.app_handle().emit_to("main", "powerclip:window-shown", ());
+                    let _ = window::show_and_notify(tray.app_handle(), &window);
                 }
             }
         })

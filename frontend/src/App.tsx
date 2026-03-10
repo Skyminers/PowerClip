@@ -71,6 +71,9 @@ function App() {
   const listRef = useRef<HTMLUListElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Ref to track scroll-to-top request after data loads
+  const scrollToTopRef = useRef(false)
+
   // Refs for global keydown
   const showExtensionsRef = useRef(showExtensions)
   showExtensionsRef.current = showExtensions
@@ -149,6 +152,23 @@ function App() {
   useEffect(() => {
     snippetsVirtualizer.measure()
   }, [filteredSnippets, snippetsVirtualizer])
+
+  // Scroll to top when requested (after data loads)
+  useEffect(() => {
+    if (scrollToTopRef.current) {
+      scrollToTopRef.current = false
+      // Use double RAF to ensure DOM is fully updated
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (viewMode === 'history') {
+            historyVirtualizer.scrollToIndex(0, { align: 'start' })
+          } else {
+            snippetsVirtualizer.scrollToIndex(0, { align: 'start' })
+          }
+        })
+      })
+    }
+  }, [filteredItems, filteredSnippets, viewMode, historyVirtualizer, snippetsVirtualizer])
 
   // Copy item to clipboard
   const copyItem = useCallback(async (item: ClipboardItem) => {
@@ -518,6 +538,8 @@ function App() {
       setViewMode('history')
       setSearchQuery('')
       setSelectedSnippetId(null)
+      // Set flag to scroll to top after data loads
+      scrollToTopRef.current = true
       const items = await loadHistory()
       // Select the first (newest) item after loading history
       if (items && items.length > 0) {
@@ -526,18 +548,23 @@ function App() {
         setSelectedId(null)
       }
       loadSnippets()
-      if (listRef.current) listRef.current.scrollTop = 0
       setTimeout(() => inputRef.current?.focus(), settings.focus_delay_ms)
     }
     window.addEventListener('powerclip:window-shown', handler)
     return () => window.removeEventListener('powerclip:window-shown', handler)
   }, [loadHistory, loadSnippets, settings.focus_delay_ms])
 
-  // Scroll to selected item
+  // Scroll to selected item (only for keyboard navigation, not initial load)
   useEffect(() => {
     const targetId = viewMode === 'snippets' ? selectedSnippetId : selectedId
     if (targetId !== null && listRef.current) {
-      listRef.current.querySelector(`[data-id="${targetId}"]`)?.scrollIntoView({ block: 'nearest' })
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        const element = listRef.current?.querySelector(`[data-id="${targetId}"]`)
+        if (element) {
+          element.scrollIntoView({ block: 'nearest' })
+        }
+      })
     }
   }, [selectedId, selectedSnippetId, viewMode])
 

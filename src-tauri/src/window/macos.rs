@@ -31,6 +31,18 @@ pub fn activate_app(bundle_id: &str) {
     }
 }
 
+/// Activate the current (our own) application.
+/// This is necessary to bring the window to front and ensure proper rendering.
+pub fn activate_own_app() {
+    unsafe {
+        let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+        if !app.is_null() {
+            // NSApplicationActivateIgnoringOtherApps = 1
+            let _: bool = msg_send![app, activateIgnoringOtherApps: true];
+        }
+    }
+}
+
 /// Get the bundle identifier of the currently frontmost application.
 pub fn get_frontmost_bundle_id() -> Option<String> {
     unsafe {
