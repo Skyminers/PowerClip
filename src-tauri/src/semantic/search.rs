@@ -114,7 +114,22 @@ impl EmbeddingIndex {
         self.lru_queue.clear();
     }
 
-    pub fn search_with_threshold(
+    /// Returns the number of embeddings currently stored.
+    #[allow(dead_code)]
+    pub fn len(&self) -> usize {
+        self.item_ids.len()
+    }
+
+    /// Returns true if the index contains no embeddings.
+    #[allow(dead_code)]
+    pub fn is_empty(&self) -> bool {
+        self.item_ids.is_empty()
+    }
+
+    /// Returns a reference to the internal embedding vector for similarity.
+    pub fn get_embeddings(&self) -> &Vec<f32> {
+        &self.embeddings
+    }
         &self,
         query: &[f32],
         k: usize,
@@ -159,6 +174,10 @@ impl EmbeddingIndex {
 
         scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
+        /*
+        Block comment to prevent rustdoc from parsing the internal braces
+        as part of the iterator.
+        */
         scores
             .into_iter()
             .map(|(item_id, score)| SearchResult { item_id, score })

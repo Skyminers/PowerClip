@@ -4,6 +4,7 @@
  */
 
 import { theme } from '../theme'
+import { formatHotkey } from '../utils/platform'
 
 const colors = theme.colors
 
@@ -14,6 +15,8 @@ export function StatusBar({
   isDarwin,
   semanticMode = false,
   viewMode = 'history',
+  hotkeyModifiers,
+  hotkeyKey,
 }: {
   totalCount: number
   filteredCount: number
@@ -21,7 +24,11 @@ export function StatusBar({
   isDarwin: boolean
   semanticMode?: boolean
   viewMode?: 'history' | 'snippets'
+  hotkeyModifiers: string
+  hotkeyKey: string
 }) {
+  const hotkeyDisplay = formatHotkey(hotkeyModifiers, hotkeyKey)
+
   return (
     <div className="flex items-center justify-between px-4 py-2 text-xs" style={{ backgroundColor: colors.bgSecondary }}>
       <div className="flex items-center gap-4" style={{ color: colors.textMuted }}>
@@ -40,7 +47,7 @@ export function StatusBar({
         <span className="flex items-center gap-1.5">
           <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>Esc</kbd>Close
         </span>
-        <span>{isDarwin ? '⌘⇧V' : 'Ctrl+Shift+V'}</span>
+        <span>{hotkeyDisplay}</span>
       </div>
     </div>
   )

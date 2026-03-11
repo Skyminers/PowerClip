@@ -538,6 +538,9 @@ mod tests {
     fn test_special_characters_in_content() {
         let conn = setup_test_db();
 
+        let item1 = save_item(&conn, "text", "First item", "hash1").unwrap();
+        let item3 = save_item(&conn, "text", "Third item", "hash3").unwrap();
+
         let special_content = "Hello \"world\" \n\t with 'quotes' and $pecial ch@rs!";
         let hash = calculate_hash(special_content.as_bytes());
 

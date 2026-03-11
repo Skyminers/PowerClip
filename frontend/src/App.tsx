@@ -768,6 +768,8 @@ function App() {
         isDarwin={isDarwin}
         semanticMode={semanticMode}
         viewMode={viewMode}
+        hotkeyModifiers={settings.hotkey_modifiers}
+        hotkeyKey={settings.hotkey_key}
       />
       <ResizeHandle />
     </div>

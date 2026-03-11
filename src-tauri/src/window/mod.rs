@@ -9,9 +9,6 @@ pub mod macos;
 #[cfg(target_os = "windows")]
 pub mod windows;
 
-#[cfg(target_os = "windows")]
-use windows::Win32::Foundation::HWND;
-
 use std::sync::Mutex;
 
 use crate::logger;
@@ -69,7 +66,7 @@ pub fn show_and_notify(app: &tauri::AppHandle, window: &tauri::WebviewWindow) ->
     {
         // Force bring to foreground after show
         if let Ok(hwnd) = window.hwnd() {
-            windows::bring_to_foreground(HWND(hwnd.0));
+            windows::bring_to_foreground(hwnd.0);
         }
     }
 
