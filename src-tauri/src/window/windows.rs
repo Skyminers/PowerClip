@@ -17,14 +17,14 @@ pub fn bring_to_foreground(hwnd: *mut c_void) -> bool {
         let bring_result = BringWindowToTop(hwnd);
         let foreground_result = SetForegroundWindow(hwnd);
 
-        let success = bring_result.is_ok() && foreground_result.is_ok();
+        let success = bring_result.is_ok() && foreground_result.as_bool();
         if !success {
             logger::warning(
                 "Window",
                 &format!(
                     "bring_to_foreground partially failed: BringWindowToTop={}, SetForegroundWindow={}",
                     bring_result.is_ok(),
-                    foreground_result.is_ok()
+                    foreground_result.as_bool()
                 ),
             );
         }
