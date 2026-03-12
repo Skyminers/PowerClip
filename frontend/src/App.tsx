@@ -306,7 +306,7 @@ function App() {
 
   // Handle semantic mode toggle
   const handleSemanticToggle = useCallback(() => {
-    if (semanticStatus?.model_downloaded && settings.semantic_search_enabled) {
+    if (semanticStatus?.api_configured && settings.semantic_search_enabled) {
       setSemanticMode(prev => !prev)
     }
   }, [semanticStatus, settings.semantic_search_enabled])

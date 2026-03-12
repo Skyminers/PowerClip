@@ -16,59 +16,13 @@ pub struct SemanticSearchResult {
     pub score: f32,
 }
 
-/// Manual download info
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ManualDownloadInfo {
-    pub url: String,
-    pub target_path: String,
-    pub filename: String,
-}
-
 /// Get semantic search status
 #[tauri::command]
 pub async fn get_semantic_status(
     state: tauri::State<'_, SemanticState>,
 ) -> Result<SemanticStatus, String> {
-    let mut status = state.status.read().map_err(|e| e.to_string())?.clone();
-
-    // Check if model file exists (handles manual download)
-    if !status.model_downloaded {
-        if let Ok(exists) = super::model::check_model_file() {
-            if exists {
-                status.model_downloaded = true;
-                // Update the stored status
-                if let Ok(mut stored_status) = state.status.write() {
-                    stored_status.model_downloaded = true;
-                }
-            }
-        }
-    }
-
+    let status = state.status.read().map_err(|e| e.to_string())?.clone();
     Ok(status)
-}
-
-/// Download the semantic model
-#[tauri::command]
-pub async fn download_model(app: tauri::AppHandle) -> Result<(), String> {
-    super::model::download_model(app)
-}
-
-/// Cancel model download
-#[tauri::command]
-pub async fn cancel_model_download() -> Result<(), String> {
-    super::model::cancel_download();
-    Ok(())
-}
-
-/// Get manual download info (URL and target path)
-#[tauri::command]
-pub async fn get_manual_download_info() -> Result<ManualDownloadInfo, String> {
-    let path = super::model::model_path();
-    Ok(ManualDownloadInfo {
-        url: super::model::get_model_url().to_string(),
-        target_path: path.to_string_lossy().to_string(),
-        filename: crate::config::SEMANTIC_MODEL_FILENAME.to_string(),
-    })
 }
 
 /// Perform semantic search
@@ -81,18 +35,16 @@ pub async fn semantic_search(
 ) -> Result<Vec<SemanticSearchResult>, String> {
     let state = app.state::<SemanticState>();
 
-    // Check if semantic search is enabled and model is available
     {
         let status = state.status.read().map_err(|e| e.to_string())?;
         if !status.enabled {
             return Err("Semantic search is not enabled".to_string());
         }
-        if !status.model_downloaded {
-            return Err("Model not downloaded".to_string());
+        if !status.api_configured {
+            return Err("Embedding API is not configured".to_string());
         }
     }
 
-    // Get min_score from settings if not provided
     let min_score = match min_score {
         Some(score) => score,
         None => {
@@ -101,16 +53,17 @@ pub async fn semantic_search(
         }
     };
 
-    // Ensure model is loaded
-    super::model::ensure_model_loaded(&state)?;
-
-    // Compute query embedding
-    let query_embedding = super::embedding::compute_embedding(&state, &query)?;
+    // Compute query embedding (blocking API call wrapped in spawn_blocking)
+    let query_embedding = tokio::task::spawn_blocking(move || {
+        super::embedding::compute_embedding(&query)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))??;
 
     // Search in memory index
     let search_results = {
         let index = state.index.read().map_err(|e| e.to_string())?;
-        index.search_with_threshold(&query_embedding, limit, min_score)
+        index.search(&query_embedding, limit, min_score)
     };
 
     if search_results.is_empty() {
@@ -127,31 +80,35 @@ pub async fn semantic_search(
         let item_result: Result<ClipboardItem, _> = conn.query_row(
             "SELECT id, type, content, hash, created_at FROM history WHERE id = ?1",
             [sr.item_id],
-            |row| Ok(ClipboardItem {
-                id: row.get(0)?,
-                item_type: row.get(1)?,
-                content: row.get(2)?,
-                hash: row.get(3)?,
-                created_at: row.get(4)?,
-            }),
+            |row| {
+                Ok(ClipboardItem {
+                    id: row.get(0)?,
+                    item_type: row.get(1)?,
+                    content: row.get(2)?,
+                    hash: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            },
         );
 
         match item_result {
             Ok(item) => {
-                results.push(SemanticSearchResult {
-                    item,
-                    score: sr.score,
-                });
+                results.push(SemanticSearchResult { item, score: sr.score });
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => {
-                // Item was deleted, remove from index
-                logger::warning("Semantic", &format!("Item {} not found in database", sr.item_id));
+                logger::warning(
+                    "Semantic",
+                    &format!("Item {} not found in database", sr.item_id),
+                );
                 if let Ok(mut index) = state.index.write() {
                     index.remove(sr.item_id);
                 }
             }
             Err(e) => {
-                logger::error("Semantic", &format!("Failed to fetch item {}: {}", sr.item_id, e));
+                logger::error(
+                    "Semantic",
+                    &format!("Failed to fetch item {}: {}", sr.item_id, e),
+                );
             }
         }
     }
@@ -168,7 +125,10 @@ pub async fn set_semantic_enabled(
 ) -> Result<(), String> {
     let mut status = state.status.write().map_err(|e| e.to_string())?;
     status.enabled = enabled;
-    logger::info("Semantic", &format!("Semantic search {}", if enabled { "enabled" } else { "disabled" }));
+    logger::info(
+        "Semantic",
+        &format!("Semantic search {}", if enabled { "enabled" } else { "disabled" }),
+    );
     Ok(())
 }
 
@@ -178,21 +138,20 @@ pub async fn rebuild_semantic_index(app: tauri::AppHandle) -> Result<usize, Stri
     let state = app.state::<SemanticState>();
     let db_state = app.state::<crate::DatabaseState>();
 
-    let conn = db_state.conn.lock().map_err(|e| e.to_string())?;
+    let settings = crate::app_settings::load_settings().unwrap_or_default();
 
-    // Clear existing index
     {
         let mut index = state.index.write().map_err(|e| e.to_string())?;
         index.clear();
     }
 
-    // Load embeddings from database
     let count = {
+        let conn = db_state.conn.lock().map_err(|e| e.to_string())?;
         let mut index = state.index.write().map_err(|e| e.to_string())?;
-        super::db::load_embeddings_into_index(&conn, &mut index).map_err(|e| e.to_string())?
+        super::db::load_embeddings_into_index(&conn, &mut index, settings.embedding_api_dim)
+            .map_err(|e| e.to_string())?
     };
 
-    // Update status
     {
         let mut status = state.status.write().map_err(|e| e.to_string())?;
         status.indexed_count = count;
@@ -210,25 +169,21 @@ pub async fn start_bulk_indexing(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 /// Fully rebuild the semantic index (clear all embeddings and re-index everything)
-/// Use when embedding dimension changes or to fix corrupted embeddings
 #[tauri::command]
 pub async fn full_rebuild_index(app: tauri::AppHandle) -> Result<String, String> {
     let state = app.state::<SemanticState>();
     let db_state = app.state::<crate::DatabaseState>();
 
-    // Clear in-memory index
     {
         let mut index = state.index.write().map_err(|e| e.to_string())?;
         index.clear();
     }
 
-    // Clear database embeddings
     let cleared_count = {
         let conn = db_state.conn.lock().map_err(|e| e.to_string())?;
         super::db::clear_all_embeddings(&conn).map_err(|e| e.to_string())?
     };
 
-    // Reset status
     {
         let mut status = state.status.write().map_err(|e| e.to_string())?;
         status.indexed_count = 0;
@@ -236,7 +191,6 @@ pub async fn full_rebuild_index(app: tauri::AppHandle) -> Result<String, String>
 
     logger::info("Semantic", &format!("Full rebuild: cleared {} embeddings", cleared_count));
 
-    // Start re-indexing
     super::embedding::index_all_items(app);
 
     Ok(format!("Cleared {} embeddings, re-indexing started", cleared_count))

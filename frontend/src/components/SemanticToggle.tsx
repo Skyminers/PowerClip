@@ -1,6 +1,6 @@
 /**
  * AI semantic search button and popup panel
- * Click to show panel with status, setup guide, and one-click download
+ * Click to show panel with status and setup guide for API-based embedding.
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
@@ -18,22 +18,13 @@ interface SemanticToggleProps {
   onRefreshStatus: () => void
 }
 
-interface ManualDownloadInfo {
-  url: string
-  target_path: string
-  filename: string
-}
-
-type SetupStep = 'enable' | 'download' | 'downloading' | 'loading' | 'ready'
+type SetupStep = 'enable' | 'configure_api' | 'indexing' | 'ready'
 
 function getSetupStep(enabled: boolean, status: SemanticStatus | null): SetupStep {
   if (!enabled) return 'enable'
   if (!status) return 'enable'
-  if (status.download_progress !== null) return 'downloading'
-  if (!status.model_downloaded) return 'download'
-  // Model loads on-demand, so if downloaded we're ready
-  // Only show loading during active indexing
-  if (status.indexing_in_progress) return 'loading'
+  if (!status.api_configured) return 'configure_api'
+  if (status.indexing_in_progress) return 'indexing'
   return 'ready'
 }
 
@@ -45,9 +36,6 @@ export function SemanticToggle({
   onRefreshStatus,
 }: SemanticToggleProps) {
   const [open, setOpen] = useState(false)
-  const [manualInfo, setManualInfo] = useState<ManualDownloadInfo | null>(null)
-  const [showManual, setShowManual] = useState(false)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
@@ -63,77 +51,43 @@ export function SemanticToggle({
         buttonRef.current && !buttonRef.current.contains(e.target as Node)
       ) {
         setOpen(false)
-        setShowManual(false)
       }
     }
     window.addEventListener('mousedown', handler)
     return () => window.removeEventListener('mousedown', handler)
   }, [open])
 
-  // Periodically refresh status (during download/loading)
+  // Periodically refresh status during indexing
   useEffect(() => {
     if (!open) return
-    if (step !== 'downloading' && step !== 'loading') return
-    const interval = setInterval(onRefreshStatus, 1000)
+    if (step !== 'indexing') return
+    const interval = setInterval(onRefreshStatus, 2000)
     return () => clearInterval(interval)
   }, [open, step, onRefreshStatus])
 
-  // Refresh status when enabled changes or panel opens
+  // Refresh status when enabled changes
   useEffect(() => {
-    if (enabled) {
-      onRefreshStatus()
-    }
+    if (enabled) onRefreshStatus()
   }, [enabled, onRefreshStatus])
-
-  // Load manual download info
-  useEffect(() => {
-    if (showManual && !manualInfo) {
-      invoke<ManualDownloadInfo>('get_manual_download_info')
-        .then(setManualInfo)
-        .catch(() => {})
-    }
-  }, [showManual, manualInfo])
 
   const handleButtonClick = useCallback(() => {
     if (isReady) {
       onToggle()
     } else {
-      // Refresh status before opening panel
       onRefreshStatus()
-      setDownloadError(null)
-      setShowManual(false)
       setOpen(prev => !prev)
     }
   }, [isReady, onToggle, onRefreshStatus])
 
-  const handleEnableClick = useCallback(() => {
+  const handleOpenSettings = useCallback(() => {
     invoke('open_settings_file').catch(() => {})
   }, [])
 
-  const handleDownloadClick = useCallback(() => {
-    setDownloadError(null)
-    invoke('download_model')
-      .then(() => {
-        // Delay refresh to let backend update status
-        setTimeout(onRefreshStatus, 500)
-      })
-      .catch((e) => {
-        setDownloadError(typeof e === 'string' ? e : String(e))
-      })
+  const handleStartIndexing = useCallback(() => {
+    invoke('start_bulk_indexing')
+      .then(() => setTimeout(onRefreshStatus, 500))
+      .catch(() => {})
   }, [onRefreshStatus])
-
-  const handleCancelDownload = useCallback(() => {
-    invoke('cancel_model_download').catch(() => {})
-    setTimeout(onRefreshStatus, 300)
-  }, [onRefreshStatus])
-
-  const handleCheckManualDownload = useCallback(() => {
-    onRefreshStatus()
-  }, [onRefreshStatus])
-
-  const copyToClipboard = useCallback((text: string) => {
-    navigator.clipboard.writeText(text).catch(() => {})
-  }, [])
 
   // Button style
   const buttonStyle: React.CSSProperties = {
@@ -154,12 +108,10 @@ export function SemanticToggle({
     position: 'relative',
   }
 
-  // Indicator dot color
   const dotColor = (() => {
     switch (step) {
       case 'ready': return active ? '#fff' : '#4ade80'
-      case 'downloading':
-      case 'loading': return '#facc15'
+      case 'indexing': return '#facc15'
       default: return colors.textMuted
     }
   })()
@@ -172,9 +124,8 @@ export function SemanticToggle({
         style={buttonStyle}
         onClick={handleButtonClick}
         className="no-drag"
-        title={isReady ? (active ? 'Disable AI search' : 'Enable AI search') : 'AI search settings'}
+        title={isReady ? (active ? 'Disable AI search' : 'Enable AI search') : 'AI search setup'}
       >
-        {/* Status indicator dot */}
         <span style={{
           width: 6,
           height: 6,
@@ -219,7 +170,7 @@ export function SemanticToggle({
               <span style={{ color: colors.text, fontSize: 13, fontWeight: 600 }}>AI Semantic Search</span>
             </div>
             <span style={{ color: colors.textMuted, fontSize: 11, lineHeight: '1.5' }}>
-              Search clipboard content using local AI model with semantic understanding
+              Search clipboard content using natural language via embedding API
             </span>
           </div>
 
@@ -229,191 +180,61 @@ export function SemanticToggle({
               <StepCard
                 stepNum={1}
                 title="Enable AI Search"
-                description='Set "semantic_search_enabled" to true in settings file, takes effect after saving'
+                description='Set "semantic_search_enabled": true in settings, then save the file.'
                 action="Open Settings File"
-                onAction={handleEnableClick}
+                onAction={handleOpenSettings}
               />
             )}
 
-            {step === 'download' && !showManual && !downloadError && (
+            {step === 'configure_api' && (
               <div>
-                <StepCard
-                  stepNum={2}
-                  title="Download AI Model"
-                  description="Need to download EmbeddingGemma model (~236MB). Model runs entirely locally, no data transmitted"
-                  action="Start Download"
-                  onAction={handleDownloadClick}
-                />
-                <button
-                  onClick={() => setShowManual(true)}
-                  style={{
-                    marginTop: 10,
-                    marginLeft: 28,
-                    background: 'none',
-                    border: 'none',
-                    color: colors.accent,
-                    fontSize: 11,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    padding: 0,
-                  }}
-                >
-                  Network issues? Manual download
-                </button>
-              </div>
-            )}
-
-            {(step === 'download' && (showManual || downloadError)) && (
-              <div>
-                <StepLabel stepNum={2} title="Manual Model Download" />
-                {downloadError && (
-                  <div style={{
-                    marginBottom: 10,
-                    padding: '8px 10px',
-                    backgroundColor: 'rgba(248, 113, 113, 0.15)',
-                    borderRadius: 6,
-                    color: '#fca5a5',
-                    fontSize: 11,
-                  }}>
-                    Download failed: {downloadError}
-                  </div>
-                )}
+                <StepLabel stepNum={2} title="Configure Embedding API" />
                 <p style={{
                   color: colors.textMuted, fontSize: 11, lineHeight: '1.6',
-                  margin: '6px 0 10px 0',
+                  margin: '6px 0 10px 28px',
                 }}>
-                  If auto download fails, please manually download the model file and place it in the specified location:
+                  Set your API credentials in the settings file:
                 </p>
-
-                {manualInfo && (
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      marginBottom: 8,
-                    }}>
-                      <span style={{ color: colors.text, fontSize: 11, fontWeight: 500 }}>Download URL:</span>
-                      <button
-                        onClick={() => copyToClipboard(manualInfo.url)}
-                        style={{
-                          background: 'none', border: 'none',
-                          color: colors.accent, fontSize: 10,
-                          cursor: 'pointer', padding: 0,
-                        }}
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <div style={{
-                      padding: '8px 10px',
-                      backgroundColor: colors.bgHover,
-                      borderRadius: 4,
-                      fontSize: 9,
-                      color: colors.textMuted,
-                      wordBreak: 'break-all',
-                      lineHeight: '1.4',
-                    }}>
-                      {manualInfo.url}
-                    </div>
-
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      marginBottom: 8, marginTop: 10,
-                    }}>
-                      <span style={{ color: colors.text, fontSize: 11, fontWeight: 500 }}>Save location:</span>
-                      <button
-                        onClick={() => copyToClipboard(manualInfo.target_path)}
-                        style={{
-                          background: 'none', border: 'none',
-                          color: colors.accent, fontSize: 10,
-                          cursor: 'pointer', padding: 0,
-                        }}
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    <div style={{
-                      padding: '8px 10px',
-                      backgroundColor: colors.bgHover,
-                      borderRadius: 4,
-                      fontSize: 10,
-                      color: colors.textMuted,
-                      wordBreak: 'break-all',
-                      lineHeight: '1.4',
-                    }}>
-                      {manualInfo.target_path}
-                    </div>
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={handleCheckManualDownload}
-                    style={{
-                      flex: 1, padding: '8px 0',
-                      borderRadius: 6, border: 'none',
-                      backgroundColor: colors.accent, color: '#fff',
-                      fontSize: 12, fontWeight: 500,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Done, Check File
-                  </button>
-                  {!downloadError && (
-                    <button
-                      onClick={() => { setShowManual(false); setDownloadError(null) }}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 6, border: `1px solid ${colors.border}`,
-                        backgroundColor: 'transparent', color: colors.textMuted,
-                        fontSize: 12,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Back
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {step === 'downloading' && (
-              <div>
-                <StepLabel stepNum={2} title="Downloading model..." />
-                <ProgressBar progress={status?.download_progress ?? 0} />
                 <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginTop: 8,
+                  marginLeft: 28,
+                  padding: '8px 10px',
+                  backgroundColor: colors.bgHover,
+                  borderRadius: 6,
+                  fontSize: 10,
+                  color: colors.textMuted,
+                  fontFamily: 'monospace',
+                  lineHeight: '1.7',
+                  marginBottom: 10,
                 }}>
-                  <span style={{ color: colors.textMuted, fontSize: 10 }}>
-                    {Math.round((status?.download_progress ?? 0) * 100)}%
-                  </span>
-                  <button
-                    onClick={handleCancelDownload}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#f87171',
-                      fontSize: 10,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel Download
-                  </button>
+                  <div><span style={{ color: colors.accent }}>"embedding_api_url"</span>: "https://api.openai.com/v1"</div>
+                  <div><span style={{ color: colors.accent }}>"embedding_api_key"</span>: "sk-..."</div>
+                  <div><span style={{ color: colors.accent }}>"embedding_api_model"</span>: "text-embedding-3-small"</div>
                 </div>
-                <span style={{ color: colors.textMuted, fontSize: 10, marginTop: 4, display: 'block' }}>
-                  Download runs in background, you can close this window
-                </span>
+                <button
+                  onClick={handleOpenSettings}
+                  style={{
+                    marginLeft: 28, padding: '6px 16px',
+                    borderRadius: 6, border: 'none',
+                    backgroundColor: colors.accent, color: '#fff',
+                    fontSize: 12, fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Open Settings File
+                </button>
+                <p style={{
+                  color: colors.textMuted, fontSize: 10, lineHeight: '1.5',
+                  margin: '8px 0 0 28px',
+                }}>
+                  Compatible with OpenAI, Azure OpenAI, and any OpenAI-compatible API.
+                </p>
               </div>
             )}
 
-            {step === 'loading' && (
+            {step === 'indexing' && (
               <div>
                 <StepLabel stepNum={3} title={
-                  status?.indexing_in_progress
-                    ? `Indexing history (${status.indexed_count}/${status.total_text_count})`
-                    : 'Loading model...'
+                  `Indexing history (${status?.indexed_count ?? 0}/${status?.total_text_count ?? 0})`
                 } />
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 8,
@@ -423,7 +244,7 @@ export function SemanticToggle({
                     <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  <span>Initial load may take a few seconds</span>
+                  <span>Indexing runs in background, you can close this</span>
                 </div>
               </div>
             )}
@@ -442,18 +263,32 @@ export function SemanticToggle({
                 <span style={{ color: colors.textMuted, fontSize: 11, lineHeight: '1.5' }}>
                   {status?.indexed_count ?? 0} text records indexed. Click AI button to toggle search mode.
                 </span>
-                <button
-                  onClick={() => { onToggle(); setOpen(false) }}
-                  style={{
-                    marginTop: 10, width: '100%', padding: '8px 0',
-                    borderRadius: 6, border: 'none',
-                    backgroundColor: active ? colors.bgHover : colors.accent,
-                    color: '#fff', fontSize: 12, fontWeight: 500,
-                    cursor: 'pointer', transition: 'background-color 0.15s',
-                  }}
-                >
-                  {active ? 'Disable AI Search' : 'Enable AI Search'}
-                </button>
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button
+                    onClick={() => { onToggle(); setOpen(false) }}
+                    style={{
+                      flex: 1, padding: '8px 0',
+                      borderRadius: 6, border: 'none',
+                      backgroundColor: active ? colors.bgHover : colors.accent,
+                      color: '#fff', fontSize: 12, fontWeight: 500,
+                      cursor: 'pointer', transition: 'background-color 0.15s',
+                    }}
+                  >
+                    {active ? 'Disable AI Search' : 'Enable AI Search'}
+                  </button>
+                  <button
+                    onClick={handleStartIndexing}
+                    title="Index any clipboard items not yet embedded"
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 6, border: `1px solid ${colors.border}`,
+                      backgroundColor: 'transparent', color: colors.textMuted,
+                      fontSize: 11, cursor: 'pointer',
+                    }}
+                  >
+                    Re-index
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -465,7 +300,7 @@ export function SemanticToggle({
             display: 'flex', justifyContent: 'flex-end',
           }}>
             <button
-              onClick={() => { setOpen(false); setShowManual(false) }}
+              onClick={() => setOpen(false)}
               style={{
                 background: 'none', border: 'none',
                 color: colors.textMuted, fontSize: 11,
@@ -529,22 +364,6 @@ function StepCard({
       >
         {action}
       </button>
-    </div>
-  )
-}
-
-function ProgressBar({ progress }: { progress: number }) {
-  return (
-    <div style={{
-      marginTop: 10, height: 4, borderRadius: 2,
-      backgroundColor: colors.bgHover, overflow: 'hidden',
-    }}>
-      <div style={{
-        height: '100%', borderRadius: 2,
-        backgroundColor: colors.accent,
-        width: `${Math.min(progress * 100, 100)}%`,
-        transition: 'width 0.3s ease',
-      }} />
     </div>
   )
 }

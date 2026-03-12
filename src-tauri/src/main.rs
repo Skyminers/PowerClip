@@ -161,11 +161,15 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
 
     // Semantic search state (always initialized, runtime-controlled by settings)
     {
-        let semantic_state = semantic::SemanticState::new();
+        let api_configured = !settings.embedding_api_key.is_empty()
+            && !settings.embedding_api_url.is_empty();
 
-        // Sync enabled state from settings
+        let semantic_state = semantic::SemanticState::new(settings.embedding_api_dim);
+
+        // Sync enabled state and API configuration from settings
         if let Ok(mut status) = semantic_state.status.write() {
             status.enabled = settings.semantic_search_enabled;
+            status.api_configured = api_configured;
         }
 
         // Update text count and load existing embeddings
@@ -173,10 +177,13 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
             if let Ok(conn) = db_state.conn.lock() {
                 semantic_state.update_text_count(&conn);
 
-                // Load existing embeddings into memory if semantic is enabled
                 if settings.semantic_search_enabled {
                     let mut index = semantic_state.index.write().unwrap();
-                    match semantic::db::load_embeddings_into_index(&conn, &mut index) {
+                    match semantic::db::load_embeddings_into_index(
+                        &conn,
+                        &mut index,
+                        settings.embedding_api_dim,
+                    ) {
                         Ok(count) => {
                             logger::info("Main", &format!("Loaded {} embeddings into memory", count));
                             if let Ok(mut status) = semantic_state.status.write() {
@@ -194,21 +201,17 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
         app.manage(semantic_state.clone());
 
         logger::info("Main", &format!(
-            "Semantic search initialized (enabled={})",
-            settings.semantic_search_enabled
+            "Semantic search initialized (enabled={}, api_configured={})",
+            settings.semantic_search_enabled, api_configured
         ));
 
-        // If semantic is enabled and model is downloaded, start bulk indexing for unindexed items
-        if settings.semantic_search_enabled {
-            let model_path = config::models_dir().join(config::SEMANTIC_MODEL_FILENAME);
-            if model_path.exists() {
-                let app_handle = app.handle().clone();
-                // Delay indexing slightly to let the app finish initializing
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_secs(2));
-                    semantic::embedding::index_all_items(app_handle);
-                });
-            }
+        // If semantic is enabled and API is configured, start bulk indexing for unindexed items
+        if settings.semantic_search_enabled && api_configured {
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                semantic::embedding::index_all_items(app_handle);
+            });
         }
     }
 
@@ -249,9 +252,6 @@ async fn main() {
             window::commands::hide_window,
             commands::extensions::run_extension,
             semantic::commands::get_semantic_status,
-            semantic::commands::download_model,
-            semantic::commands::cancel_model_download,
-            semantic::commands::get_manual_download_info,
             semantic::commands::semantic_search,
             semantic::commands::set_semantic_enabled,
             semantic::commands::rebuild_semantic_index,

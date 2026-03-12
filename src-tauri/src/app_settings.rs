@@ -70,6 +70,19 @@ pub struct AppSettings {
     /// Debounce delay for semantic search (milliseconds)
     #[serde(default = "default_semantic_search_debounce_ms")]
     pub semantic_search_debounce_ms: u64,
+    // ---- Embedding API ----
+    /// Base URL of the OpenAI-compatible embeddings API
+    #[serde(default = "default_embedding_api_url")]
+    pub embedding_api_url: String,
+    /// API key for the embeddings API
+    #[serde(default)]
+    pub embedding_api_key: String,
+    /// Embedding model name (e.g. "text-embedding-3-small")
+    #[serde(default = "default_embedding_api_model")]
+    pub embedding_api_model: String,
+    /// Embedding vector dimension returned by the model (e.g. 1536)
+    #[serde(default = "default_embedding_api_dim")]
+    pub embedding_api_dim: usize,
 }
 
 fn default_add_to_snippets_enabled() -> bool {
@@ -124,6 +137,18 @@ fn default_semantic_search_debounce_ms() -> u64 {
     300
 }
 
+fn default_embedding_api_url() -> String {
+    "https://api.openai.com/v1".to_string()
+}
+
+fn default_embedding_api_model() -> String {
+    "text-embedding-3-small".to_string()
+}
+
+fn default_embedding_api_dim() -> usize {
+    1536
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -151,6 +176,10 @@ impl Default for AppSettings {
             max_history_fetch: default_max_history_fetch(),
             focus_delay_ms: default_focus_delay_ms(),
             semantic_search_debounce_ms: default_semantic_search_debounce_ms(),
+            embedding_api_url: default_embedding_api_url(),
+            embedding_api_key: String::new(),
+            embedding_api_model: default_embedding_api_model(),
+            embedding_api_dim: default_embedding_api_dim(),
         }
     }
 }
@@ -199,9 +228,17 @@ fn initial_settings_content() -> String {
 
   // ---- AI Semantic Search ----
   // Enable to search clipboard content using natural language (e.g., "URL copied yesterday")
-  // First-time use requires downloading EmbeddingGemma model (~236MB), runs entirely locally
-  // After enabling, click the AI button next to search bar to complete setup
+  // Requires an OpenAI-compatible embeddings API - configure the fields below
   "semantic_search_enabled": false,
+
+  // Embeddings API base URL (OpenAI-compatible)
+  "embedding_api_url": "https://api.openai.com/v1",
+  // Your API key
+  "embedding_api_key": "",
+  // Embedding model name
+  "embedding_api_model": "text-embedding-3-small",
+  // Dimension of embeddings returned by the model (must match the model)
+  "embedding_api_dim": 1536,
 
   // ---- Quick Add to Snippets Hotkey ----
   // Quickly add current clipboard content to snippets (Quick Commands)
@@ -391,27 +428,26 @@ pub fn start_settings_watcher(app_handle: tauri::AppHandle) -> Result<(), String
                                 if let Some(sem_state) = app.try_state::<crate::semantic::SemanticState>() {
                                     if let Ok(mut status) = sem_state.status.write() {
                                         status.enabled = settings.semantic_search_enabled;
+                                        status.api_configured = !settings.embedding_api_key.is_empty()
+                                            && !settings.embedding_api_url.is_empty();
                                     }
 
                                     // Check if semantic search was just enabled
                                     if check_semantic_enabled_transition(settings.semantic_search_enabled) {
                                         logger::info("Settings", "Semantic search enabled, triggering bulk indexing...");
 
-                                        // Check if model is downloaded
-                                        let model_exists = crate::config::models_dir()
-                                            .join(crate::config::SEMANTIC_MODEL_FILENAME)
-                                            .exists();
+                                        // Start bulk indexing if API is configured
+                                        let api_configured = !settings.embedding_api_key.is_empty()
+                                            && !settings.embedding_api_url.is_empty();
 
-                                        if model_exists {
-                                            // Trigger bulk indexing in background
+                                        if api_configured {
                                             let app_clone = app.clone();
                                             std::thread::spawn(move || {
-                                                // Small delay to let the settings update propagate
                                                 std::thread::sleep(std::time::Duration::from_millis(500));
                                                 crate::semantic::embedding::index_all_items(app_clone);
                                             });
                                         } else {
-                                            logger::info("Settings", "Model not downloaded yet, skipping bulk indexing");
+                                            logger::info("Settings", "API not configured yet, skipping bulk indexing");
                                         }
                                     }
                                 }
@@ -539,6 +575,10 @@ mod tests {
             max_history_fetch: 5000,
             focus_delay_ms: 75,
             semantic_search_debounce_ms: 400,
+            embedding_api_url: "https://api.openai.com/v1".to_string(),
+            embedding_api_key: "sk-test".to_string(),
+            embedding_api_model: "text-embedding-3-small".to_string(),
+            embedding_api_dim: 1536,
         };
 
         // Serialize to JSON

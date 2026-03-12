@@ -6,7 +6,7 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use crate::config::{EMBEDDING_DIM, MAX_EMBEDDINGS_IN_MEMORY, MIN_SIMILARITY_SCORE};
+use crate::config::{MAX_EMBEDDINGS_IN_MEMORY, MIN_SIMILARITY_SCORE};
 
 /// Result item from semantic search
 #[derive(Debug, Clone)]
@@ -130,6 +130,8 @@ impl EmbeddingIndex {
     pub fn get_embeddings(&self) -> &Vec<f32> {
         &self.embeddings
     }
+
+    pub fn search(
         &self,
         query: &[f32],
         k: usize,
@@ -174,10 +176,6 @@ impl EmbeddingIndex {
 
         scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
-        /*
-        Block comment to prevent rustdoc from parsing the internal braces
-        as part of the iterator.
-        */
         scores
             .into_iter()
             .map(|(item_id, score)| SearchResult { item_id, score })
@@ -187,7 +185,7 @@ impl EmbeddingIndex {
 
 impl Default for EmbeddingIndex {
     fn default() -> Self {
-        Self::new(EMBEDDING_DIM)
+        Self::new(1536)
     }
 }
 
