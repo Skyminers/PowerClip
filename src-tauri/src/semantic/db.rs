@@ -2,7 +2,6 @@
 
 use rusqlite::Connection;
 
-use crate::config::EMBEDDING_DIM;
 use crate::logger;
 
 /// Save an embedding for an item
@@ -109,28 +108,30 @@ fn blob_to_embedding(blob: &[u8], dim: usize) -> Vec<f32> {
     embedding
 }
 
-/// Load all embeddings from database into memory index
+/// Load all embeddings from database into memory index.
+/// Only loads embeddings whose dimension matches `expected_dim`.
 pub fn load_embeddings_into_index(
     conn: &Connection,
     index: &mut super::EmbeddingIndex,
+    expected_dim: usize,
 ) -> Result<usize, rusqlite::Error> {
     let embeddings = get_all_embeddings(conn)?;
-    let count = embeddings.len();
+    let mut loaded = 0usize;
 
     for (item_id, embedding) in embeddings {
-        // Validate dimension
-        if embedding.len() == EMBEDDING_DIM {
+        if embedding.len() == expected_dim {
             index.upsert(item_id, &embedding);
+            loaded += 1;
         } else {
             logger::warning("SemanticDB", &format!(
                 "Skipping item {} with wrong dimension: {} (expected {})",
-                item_id, embedding.len(), EMBEDDING_DIM
+                item_id, embedding.len(), expected_dim
             ));
         }
     }
 
-    logger::info("SemanticDB", &format!("Loaded {} embeddings into index", count));
-    Ok(count)
+    logger::info("SemanticDB", &format!("Loaded {} embeddings into index", loaded));
+    Ok(loaded)
 }
 
 #[cfg(test)]
@@ -328,18 +329,18 @@ mod tests {
     #[test]
     fn test_load_embeddings_into_index() {
         let conn = setup_test_db();
+        const DIM: usize = 4;
 
-        // Save some embeddings with the correct dimension
-        let mut embedding1 = vec![0.0; EMBEDDING_DIM];
+        let mut embedding1 = vec![0.0f32; DIM];
         embedding1[0] = 1.0;
-        let mut embedding2 = vec![0.0; EMBEDDING_DIM];
+        let mut embedding2 = vec![0.0f32; DIM];
         embedding2[1] = 1.0;
 
         save_embedding(&conn, 1, &embedding1).expect("Failed to save");
         save_embedding(&conn, 2, &embedding2).expect("Failed to save");
 
-        let mut index = crate::semantic::EmbeddingIndex::new(EMBEDDING_DIM);
-        let count = load_embeddings_into_index(&conn, &mut index).expect("Failed to load");
+        let mut index = crate::semantic::EmbeddingIndex::new(DIM);
+        let count = load_embeddings_into_index(&conn, &mut index, DIM).expect("Failed to load");
 
         assert_eq!(count, 2);
         assert_eq!(index.len(), 2);

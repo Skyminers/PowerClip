@@ -6,7 +6,7 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use crate::config::{EMBEDDING_DIM, MAX_EMBEDDINGS_IN_MEMORY, MIN_SIMILARITY_SCORE};
+use crate::config::{MAX_EMBEDDINGS_IN_MEMORY, MIN_SIMILARITY_SCORE};
 
 /// Result item from semantic search
 #[derive(Debug, Clone)]
@@ -185,7 +185,7 @@ impl EmbeddingIndex {
 
 impl Default for EmbeddingIndex {
     fn default() -> Self {
-        Self::new(EMBEDDING_DIM)
+        Self::new(1536)
     }
 }
 

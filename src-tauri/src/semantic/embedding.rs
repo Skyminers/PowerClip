@@ -1,111 +1,43 @@
-//! Embedding computation using llama-cpp-2
+//! Embedding computation via OpenAI-compatible API
 //!
-//! Provides text embedding computation for semantic search.
-//! Uses EmbeddingGemma-300M model via llama.cpp.
+//! Provides text embedding via an external API for semantic search.
 
 use std::sync::mpsc;
 
 use tauri::Manager;
 
-use crate::config::{EMBEDDING_DIM, EMBEDDING_BATCH_SIZE, MAX_EMBEDDING_TOKENS};
+use crate::config::EMBEDDING_BATCH_SIZE;
 use crate::logger;
 
 use super::SemanticState;
 
-use llama_cpp_2::context::params::LlamaContextParams;
-use llama_cpp_2::llama_batch::LlamaBatch;
-use llama_cpp_2::model::AddBos;
-
-/// Compute embedding for a text string.
+/// Compute an embedding for the given text using the configured API.
 ///
-/// Returns a normalized embedding vector truncated to EMBEDDING_DIM dimensions.
-///
-/// # Arguments
-/// * `state` - Semantic state containing the loaded model
-/// * `text` - Input text to embed
-///
-/// # Returns
-/// * `Ok(Vec<f32>)` - Normalized embedding vector
-/// * `Err(String)` - Error message if computation fails
-pub fn compute_embedding(state: &SemanticState, text: &str) -> Result<Vec<f32>, String> {
-    let model_guard = state.model.lock().map_err(|e| e.to_string())?;
-    let semantic_model = model_guard.as_ref().ok_or("Model not loaded")?;
+/// Loads API credentials from settings on each call so that settings changes
+/// take effect without a restart.
+pub fn compute_embedding(text: &str) -> Result<Vec<f32>, String> {
+    let settings = crate::app_settings::load_settings()
+        .map_err(|e| format!("Failed to load settings: {}", e))?;
 
-    // Create context with embeddings enabled
-    let ctx_params = LlamaContextParams::default()
-        .with_n_ctx(std::num::NonZeroU32::new(MAX_EMBEDDING_TOKENS as u32))
-        .with_n_batch(MAX_EMBEDDING_TOKENS as u32)
-        .with_n_ubatch(MAX_EMBEDDING_TOKENS as u32)
-        .with_embeddings(true);
-
-    let mut ctx = semantic_model
-        .model
-        .new_context(&semantic_model.backend, ctx_params)
-        .map_err(|e| format!("Failed to create context: {}", e))?;
-
-    // Tokenize input text
-    let mut tokens = semantic_model
-        .model
-        .str_to_token(text, AddBos::Always)
-        .map_err(|e| format!("Tokenization failed: {}", e))?;
-
-    if tokens.is_empty() {
-        return Err("Empty token sequence".to_string());
-    }
-
-    // Truncate if exceeds max tokens
-    if tokens.len() > MAX_EMBEDDING_TOKENS {
-        tokens.truncate(MAX_EMBEDDING_TOKENS);
-        logger::debug(
-            "Semantic",
-            &format!("Truncated tokens to {}", MAX_EMBEDDING_TOKENS),
+    if !super::api::is_configured(&settings.embedding_api_url, &settings.embedding_api_key) {
+        return Err(
+            "Embedding API not configured. Set embedding_api_url and embedding_api_key in settings."
+                .to_string(),
         );
     }
 
-    // Create batch and add tokens
-    let mut batch = LlamaBatch::new(tokens.len(), 1);
-    batch
-        .add_sequence(&tokens, 0, true)
-        .map_err(|e| format!("Failed to add sequence: {}", e))?;
-
-    // Run encode (embedding model inference)
-    ctx.encode(&mut batch)
-        .map_err(|e| format!("Encode failed: {}", e))?;
-
-    // Get sequence-level pooled embedding
-    let embeddings = ctx
-        .embeddings_seq_ith(0)
-        .map_err(|e| format!("Failed to get embeddings: {}", e))?;
-
-    // Truncate to target dimension (MRL technique)
-    let truncated: Vec<f32> = embeddings.iter().take(EMBEDDING_DIM).copied().collect();
-
-    // L2 normalize for cosine similarity
-    Ok(l2_normalize(&truncated))
-}
-
-/// L2 normalize a vector in-place.
-///
-/// For normalized vectors, dot product equals cosine similarity.
-fn l2_normalize(vec: &[f32]) -> Vec<f32> {
-    let norm: f32 = vec.iter().map(|x| x * x).sum::<f32>().sqrt();
-
-    if norm < 1e-10 {
-        return vec.to_vec();
-    }
-
-    vec.iter().map(|x| x / norm).collect()
+    super::api::fetch_embedding(
+        text,
+        &settings.embedding_api_url,
+        &settings.embedding_api_key,
+        &settings.embedding_api_model,
+    )
 }
 
 /// Index a single clipboard item.
 ///
-/// Computes embedding, saves to database, and updates in-memory index.
+/// Computes embedding via API, saves to database, and updates in-memory index.
 /// Called when new clipboard content is saved.
-///
-/// # Arguments
-/// * `app` - Tauri app handle for accessing state
-/// * `item_id` - Database ID of the item
-/// * `content` - Text content to embed
 pub fn index_single_item(app: &tauri::AppHandle, item_id: i64, content: &str) {
     let state = match app.try_state::<SemanticState>() {
         Some(s) => s,
@@ -115,33 +47,25 @@ pub fn index_single_item(app: &tauri::AppHandle, item_id: i64, content: &str) {
         }
     };
 
-    // Check if semantic search is enabled and model downloaded
-    let enabled = state
+    // Only index if semantic search is enabled and API is configured
+    let should_index = state
         .status
         .read()
-        .map(|s| s.enabled && s.model_downloaded)
+        .map(|s| s.enabled && s.api_configured)
         .unwrap_or(false);
 
-    if !enabled {
+    if !should_index {
         return;
     }
 
-    // Ensure model is loaded
-    if let Err(e) = super::model::ensure_model_loaded(&state) {
-        logger::error("Semantic", &format!("Failed to load model: {}", e));
-        return;
-    }
-
-    // Compute embedding
-    let embedding = match compute_embedding(&state, content) {
+    let embedding = match compute_embedding(content) {
         Ok(e) => e,
         Err(e) => {
-            logger::error("Semantic", &format!("Failed to compute embedding: {}", e));
+            logger::debug("Semantic", &format!("Failed to index item {}: {}", item_id, e));
             return;
         }
     };
 
-    // Save to database
     if let Some(db_state) = app.try_state::<crate::DatabaseState>() {
         if let Ok(conn) = db_state.conn.lock() {
             if let Err(e) = super::db::save_embedding(&conn, item_id, &embedding) {
@@ -151,12 +75,10 @@ pub fn index_single_item(app: &tauri::AppHandle, item_id: i64, content: &str) {
         }
     }
 
-    // Update in-memory index
     if let Ok(mut index) = state.index.write() {
         index.upsert(item_id, &embedding);
     }
 
-    // Update status
     if let Ok(mut status) = state.status.write() {
         status.indexed_count = status.indexed_count.saturating_add(1);
     }
@@ -166,11 +88,8 @@ pub fn index_single_item(app: &tauri::AppHandle, item_id: i64, content: &str) {
 
 /// Bulk index all existing text items without embeddings.
 ///
-/// Called when semantic search is first enabled or after model download.
-/// Runs in background thread with batch database writes for efficiency.
-///
-/// # Arguments
-/// * `app` - Tauri app handle
+/// Called when semantic search is first enabled or when API is first configured.
+/// Runs in a background thread with batch database writes for efficiency.
 pub fn index_all_items(app: tauri::AppHandle) {
     let state = match app.try_state::<SemanticState>() {
         Some(s) => s.inner().clone(),
@@ -180,13 +99,11 @@ pub fn index_all_items(app: tauri::AppHandle) {
         }
     };
 
-    // Check if already indexing
     if state.status.read().map(|s| s.indexing_in_progress).unwrap_or(false) {
         logger::info("Semantic", "Bulk indexing already in progress");
         return;
     }
 
-    // Get items that need indexing
     let items_to_index: Vec<(i64, String)> = match get_unindexed_items(&app) {
         Ok(items) => items,
         Err(e) => {
@@ -200,21 +117,10 @@ pub fn index_all_items(app: tauri::AppHandle) {
         return;
     }
 
-    let total = items_to_index.len();
-    logger::info("Semantic", &format!("Starting bulk indexing of {} items", total));
+    logger::info("Semantic", &format!("Starting bulk indexing of {} items", items_to_index.len()));
 
-    // Set indexing in progress
     if let Ok(mut status) = state.status.write() {
         status.indexing_in_progress = true;
-    }
-
-    // Ensure model is loaded
-    if let Err(e) = super::model::ensure_model_loaded(&state) {
-        logger::error("Semantic", &format!("Failed to load model: {}", e));
-        if let Ok(mut status) = state.status.write() {
-            status.indexing_in_progress = false;
-        }
-        return;
     }
 
     // Channel for batch database writes
@@ -231,10 +137,10 @@ pub fn index_all_items(app: tauri::AppHandle) {
                 if let Ok(conn) = db_state.conn.lock() {
                     for (item_id, embedding) in batch {
                         if let Err(e) = super::db::save_embedding(&conn, item_id, &embedding) {
-                            logger::warning("Semantic", &format!(
-                                "Failed to save embedding for item {}: {}",
-                                item_id, e
-                            ));
+                            logger::warning(
+                                "Semantic",
+                                &format!("Failed to save embedding for item {}: {}", item_id, e),
+                            );
                         }
                     }
                 }
@@ -250,27 +156,20 @@ pub fn index_all_items(app: tauri::AppHandle) {
         let mut batch: Vec<(i64, Vec<f32>)> = Vec::with_capacity(EMBEDDING_BATCH_SIZE);
 
         for (item_id, content) in items_to_index {
-            // Check if still enabled
             let still_enabled = state.status.read().map(|s| s.enabled).unwrap_or(false);
-
             if !still_enabled {
                 logger::info("Semantic", "Semantic search disabled, stopping bulk indexing");
                 break;
             }
 
-            // Compute embedding
-            match compute_embedding(&state, &content) {
+            match compute_embedding(&content) {
                 Ok(embedding) => {
-                    // Update in-memory index
                     if let Ok(mut idx) = state.index.write() {
                         idx.upsert(item_id, &embedding);
                     }
-
-                    // Add to batch for database write
                     batch.push((item_id, embedding));
                     indexed += 1;
 
-                    // Send batch when full
                     if batch.len() >= EMBEDDING_BATCH_SIZE {
                         if tx.send(std::mem::take(&mut batch)).is_err() {
                             logger::warning("Semantic", "Failed to send batch to database writer");
@@ -278,30 +177,29 @@ pub fn index_all_items(app: tauri::AppHandle) {
                     }
                 }
                 Err(e) => {
-                    logger::warning("Semantic", &format!("Failed to embed item {}: {}", item_id, e));
+                    logger::warning(
+                        "Semantic",
+                        &format!("Failed to embed item {}: {}", item_id, e),
+                    );
                     failed += 1;
                 }
             }
 
-            // Update progress every 10 items
             if (indexed + failed) % 10 == 0 {
                 if let Ok(mut status) = state.status.write() {
-                    status.indexed_count = status.indexed_count.saturating_add(10);
+                    status.indexed_count = indexed;
                 }
             }
         }
 
-        // Send remaining batch
         if !batch.is_empty() {
             let _ = tx.send(batch);
         }
+        let _ = tx.send(Vec::new()); // signal end
 
-        // Signal end of indexing
-        let _ = tx.send(Vec::new());
-
-        // Final status update
         if let Ok(mut status) = state.status.write() {
             status.indexing_in_progress = false;
+            status.indexed_count = indexed;
         }
 
         logger::info(
@@ -333,45 +231,4 @@ fn get_unindexed_items(app: &tauri::AppHandle) -> Result<Vec<(i64, String)>, Str
         .map_err(|e| e.to_string())?;
 
     Ok(rows.filter_map(|r| r.ok()).collect())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_l2_normalize() {
-        let input = vec![3.0, 4.0];
-        let normalized = l2_normalize(&input);
-
-        assert!((normalized[0] - 0.6).abs() < 0.001);
-        assert!((normalized[1] - 0.8).abs() < 0.001);
-
-        // Check norm is 1
-        let norm: f32 = normalized.iter().map(|x| x * x).sum::<f32>().sqrt();
-        assert!((norm - 1.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_l2_normalize_zero() {
-        let input = vec![0.0, 0.0, 0.0];
-        let normalized = l2_normalize(&input);
-        assert_eq!(normalized, input);
-    }
-
-    #[test]
-    fn test_l2_normalize_unit() {
-        let input = vec![1.0, 0.0, 0.0];
-        let normalized = l2_normalize(&input);
-        assert!((normalized[0] - 1.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_l2_normalize_negative() {
-        let input = vec![-3.0, -4.0];
-        let normalized = l2_normalize(&input);
-
-        assert!((normalized[0] - (-0.6)).abs() < 0.001);
-        assert!((normalized[1] - (-0.8)).abs() < 0.001);
-    }
 }

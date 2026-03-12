@@ -26,6 +26,11 @@ export interface Settings {
   auto_paste_enabled: boolean;
   extensions: Extension[];
   semantic_search_enabled: boolean;
+  // Embedding API settings
+  embedding_api_url: string;
+  embedding_api_key: string;
+  embedding_api_model: string;
+  embedding_api_dim: number;
   // Add to snippets hotkey settings
   add_to_snippets_hotkey_enabled: boolean;
   add_to_snippets_hotkey_modifiers: string;
@@ -44,13 +49,11 @@ export interface Settings {
 
 /// Status of the semantic search feature
 export interface SemanticStatus {
-  model_downloaded: boolean;
-  model_loaded: boolean;
-  download_progress: number | null;
   indexed_count: number;
   total_text_count: number;
   indexing_in_progress: boolean;
   enabled: boolean;
+  api_configured: boolean;
 }
 
 /// Result item from semantic search

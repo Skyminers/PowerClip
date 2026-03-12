@@ -56,6 +56,10 @@ describe('types', () => {
         auto_paste_enabled: false,
         extensions: [],
         semantic_search_enabled: false,
+        embedding_api_url: 'https://api.openai.com/v1',
+        embedding_api_key: '',
+        embedding_api_model: 'text-embedding-3-small',
+        embedding_api_dim: 1536,
         add_to_snippets_hotkey_enabled: true,
         add_to_snippets_hotkey_modifiers: 'Meta+Shift',
         add_to_snippets_hotkey_key: 'KeyS',
@@ -94,36 +98,30 @@ describe('types', () => {
   describe('SemanticStatus', () => {
     it('should have required properties', () => {
       const status: SemanticStatus = {
-        model_downloaded: true,
-        model_loaded: false,
-        download_progress: 0.5,
         indexed_count: 100,
         total_text_count: 200,
         indexing_in_progress: false,
         enabled: true,
+        api_configured: true,
       }
 
-      expect(status.model_downloaded).toBe(true)
-      expect(status.model_loaded).toBe(false)
-      expect(status.download_progress).toBe(0.5)
       expect(status.indexed_count).toBe(100)
       expect(status.total_text_count).toBe(200)
       expect(status.indexing_in_progress).toBe(false)
       expect(status.enabled).toBe(true)
+      expect(status.api_configured).toBe(true)
     })
 
-    it('should allow null download_progress', () => {
+    it('should allow api_configured false', () => {
       const status: SemanticStatus = {
-        model_downloaded: false,
-        model_loaded: false,
-        download_progress: null,
         indexed_count: 0,
         total_text_count: 0,
         indexing_in_progress: false,
         enabled: false,
+        api_configured: false,
       }
 
-      expect(status.download_progress).toBeNull()
+      expect(status.api_configured).toBe(false)
     })
   })
 
