@@ -225,6 +225,12 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
+    // Workaround for macOS 26 Tahoe compatibility: disable objc2 strict message verification
+    // This prevents panics when Apple changes Objective-C method type encodings
+    // See: https://github.com/tauri-apps/tauri/issues/11340
+    #[cfg(target_os = "macos")]
+    std::env::set_var("OBJC2_DEBUG", "0");
+
     logger::info("Main", &format!("=== {} Starting ===", APP_NAME));
 
     tauri::Builder::default()

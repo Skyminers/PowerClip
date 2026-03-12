@@ -38,7 +38,8 @@ pub fn activate_own_app() {
         let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
         if !app.is_null() {
             // NSApplicationActivateIgnoringOtherApps = 1
-            let _: bool = msg_send![app, activateIgnoringOtherApps: true];
+            // Note: activateIgnoringOtherApps returns void, not bool
+            let _: () = msg_send![app, activateIgnoringOtherApps: true];
         }
     }
 }
