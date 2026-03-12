@@ -71,6 +71,7 @@ body {
 
 /* Hide scrollbar completely */
 .scrollbar-thin {
+  scroll-behavior: smooth;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }
@@ -105,6 +106,7 @@ ul:focus {
 /* List items */
 li {
   background-color: inherit;
+  transition: background-color 0.15s ease-out, opacity 0.15s ease-out;
 }
 
 /* Empty state */
@@ -112,18 +114,9 @@ li {
   background-color: #1e1e2e;
 }
 
-/* Selection highlight animation */
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.85;
-  }
-}
-
-.selected-pulse {
-  animation: pulse 2s ease-in-out infinite;
+/* Selected item indicator */
+.selected-indicator {
+  box-shadow: inset 3px 0 0 0 #89b4fa;
 }
 
 /* Fade in animation */

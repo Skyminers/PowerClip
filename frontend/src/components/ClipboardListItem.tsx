@@ -67,7 +67,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
       ref={ref}
       data-id={item.id}
       data-index={dataIndex}
-      className={`relative px-4 py-3 cursor-pointer ${isSelected ? 'selected-pulse' : ''} ${isDeleting ? 'opacity-50' : ''}`}
+      className={`relative px-4 py-3 cursor-pointer ${isSelected ? 'selected-indicator' : ''} ${isDeleting ? 'opacity-50' : ''}`}
       style={{ backgroundColor: isSelected ? colors.selected : 'transparent', ...style }}
       onClick={() => !isDeleting && onSelect(item.id)}
       onDoubleClick={() => !isDeleting && onCopy(item)}
@@ -90,7 +90,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
                   {formatContent(item.content, item.item_type, contentTruncateLength)}
                 </p>
                 {isSelected && (
-                  <p className="text-xs mt-1.5 line-clamp-2 opacity-70" style={{ color: colors.text }}>
+                  <p className="text-xs mt-1.5 line-clamp-2 opacity-70 fade-in" style={{ color: colors.text }}>
                     {getPreview(item.content, 200)}
                   </p>
                 )}

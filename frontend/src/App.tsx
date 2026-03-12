@@ -554,19 +554,20 @@ function App() {
     return () => window.removeEventListener('powerclip:window-shown', handler)
   }, [loadHistory, loadSnippets, settings.focus_delay_ms])
 
-  // Scroll to selected item (only for keyboard navigation, not initial load)
+  // Scroll to selected item using virtualizer's native scrollToIndex
   useEffect(() => {
-    const targetId = viewMode === 'snippets' ? selectedSnippetId : selectedId
-    if (targetId !== null && listRef.current) {
-      // Use requestAnimationFrame to ensure DOM is ready
-      requestAnimationFrame(() => {
-        const element = listRef.current?.querySelector(`[data-id="${targetId}"]`)
-        if (element) {
-          element.scrollIntoView({ block: 'nearest' })
-        }
-      })
+    if (viewMode === 'history' && selectedId !== null) {
+      const idx = filteredItems.findIndex(item => item.id === selectedId)
+      if (idx >= 0) {
+        historyVirtualizer.scrollToIndex(idx, { align: 'auto' })
+      }
+    } else if (viewMode === 'snippets' && selectedSnippetId !== null) {
+      const idx = filteredSnippets.findIndex(s => s.id === selectedSnippetId)
+      if (idx >= 0) {
+        snippetsVirtualizer.scrollToIndex(idx, { align: 'auto' })
+      }
     }
-  }, [selectedId, selectedSnippetId, viewMode])
+  }, [selectedId, selectedSnippetId, viewMode, filteredItems, filteredSnippets, historyVirtualizer, snippetsVirtualizer])
 
   // Initial focus
   useEffect(() => {
