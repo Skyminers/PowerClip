@@ -110,7 +110,7 @@ pub async fn semantic_search(
     // Search in memory index
     let search_results = {
         let index = state.index.read().map_err(|e| e.to_string())?;
-        index.search_with_threshold(&query_embedding, limit, min_score)
+        index.search(&query_embedding, limit, min_score)
     };
 
     if search_results.is_empty() {
