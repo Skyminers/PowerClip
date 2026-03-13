@@ -19,6 +19,13 @@ pub struct HotkeyState {
     pub handler_installed: std::sync::Mutex<bool>,
 }
 
+// SAFETY: GlobalHotKeyManager on Windows contains *mut c_void (a Win32 HWND/handle)
+// which does not auto-implement Send. However, Win32 handles are safe to transfer
+// between threads, and all access to GlobalHotKeyManager is protected by a Mutex,
+// so it is safe to implement Send + Sync manually here.
+unsafe impl Send for HotkeyState {}
+unsafe impl Sync for HotkeyState {}
+
 impl HotkeyState {
     pub fn new() -> Result<Self, String> {
         let manager = GlobalHotKeyManager::new().map_err(|e: global_hotkey::Error| {
