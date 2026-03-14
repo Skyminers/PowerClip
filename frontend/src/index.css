@@ -107,6 +107,7 @@ ul:focus {
 li {
   background-color: inherit;
   transition: background-color 0.15s ease-out, opacity 0.15s ease-out;
+  overflow: hidden;
 }
 
 /* Empty state */
@@ -177,9 +178,4 @@ li {
 .window-wrapper .no-drag,
 .resize-handle {
   -webkit-app-region: no-drag;
-}
-
-/* Window draggable */
-.window-wrapper {
-  -webkit-app-region: drag;
 }
