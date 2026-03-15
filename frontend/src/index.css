@@ -71,7 +71,7 @@ body {
 
 /* Hide scrollbar completely */
 .scrollbar-thin {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }

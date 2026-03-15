@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { flushSync } from 'react-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { invoke } from '@tauri-apps/api/core'
 import type { ClipboardItem, Settings, ImageCache, SemanticStatus, Snippet } from './types'
@@ -71,9 +72,6 @@ function App() {
   const listRef = useRef<HTMLUListElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Ref to track scroll-to-top request after data loads
-  const scrollToTopRef = useRef(false)
-
   // Refs for global keydown
   const showExtensionsRef = useRef(showExtensions)
   showExtensionsRef.current = showExtensions
@@ -130,6 +128,11 @@ function App() {
       if (item?.item_type === 'image') {
         return settings.image_preview_max_height + 40
       }
+      // Selected text items show preview text, need more height
+      // Use a larger estimate to avoid overflow before measurement
+      if (item && selectedId === item.id) {
+        return 90 // Account for preview text (2 lines + margin)
+      }
       return 56
     },
     overscan: 5,
@@ -140,8 +143,16 @@ function App() {
   const snippetsVirtualizer = useVirtualizer({
     count: filteredSnippets.length,
     getScrollElement: () => listRef.current,
-    estimateSize: () => 56,
+    estimateSize: (index) => {
+      const snippet = filteredSnippets[index]
+      // Selected snippets show preview text, need more height
+      if (snippet && selectedSnippetId === snippet.id) {
+        return 90
+      }
+      return 56
+    },
     overscan: 5,
+    measureElement: (element) => element?.getBoundingClientRect().height ?? 56,
   })
 
   // Re-measure items when filtered list changes (e.g., during search)
@@ -153,22 +164,15 @@ function App() {
     snippetsVirtualizer.measure()
   }, [filteredSnippets, snippetsVirtualizer])
 
-  // Scroll to top when requested (after data loads)
+  // Re-measure when selection changes (item height changes due to preview text)
   useEffect(() => {
-    if (scrollToTopRef.current) {
-      scrollToTopRef.current = false
-      // Use double RAF to ensure DOM is fully updated
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (viewMode === 'history') {
-            historyVirtualizer.scrollToIndex(0, { align: 'start' })
-          } else {
-            snippetsVirtualizer.scrollToIndex(0, { align: 'start' })
-          }
-        })
-      })
-    }
-  }, [filteredItems, filteredSnippets, viewMode, historyVirtualizer, snippetsVirtualizer])
+    // Force virtualizer to recalculate positions with new estimate
+    historyVirtualizer.measure()
+  }, [selectedId, historyVirtualizer])
+
+  useEffect(() => {
+    snippetsVirtualizer.measure()
+  }, [selectedSnippetId, snippetsVirtualizer])
 
   // Copy item to clipboard
   const copyItem = useCallback(async (item: ClipboardItem) => {
@@ -431,10 +435,21 @@ function App() {
     }
   }, [filteredItems, filteredSnippets, selectedId, selectedSnippetId, settings.extensions.length, copyItem, copySnippet])
 
-  // Load history
-  const loadHistory = useCallback(async (): Promise<ClipboardItem[] | null> => {
+  // Load history (returns data without setting state - caller decides when to set)
+  const fetchHistory = useCallback(async (): Promise<ClipboardItem[] | null> => {
     try {
       const result = await invoke<ClipboardItem[]>('get_history', { limit: settings.max_history_fetch })
+      return result
+    } catch (error) {
+      console.error('[PowerClip] Failed to load history:', error)
+      return null
+    }
+  }, [settings.max_history_fetch])
+
+  // Load history and set state (for initial load and item additions)
+  const loadHistory = useCallback(async (): Promise<ClipboardItem[] | null> => {
+    const result = await fetchHistory()
+    if (result) {
       setItems(result)
 
       // Load images asynchronously in batch
@@ -457,12 +472,9 @@ function App() {
           }
         })
       }
-      return result
-    } catch (error) {
-      console.error('[PowerClip] Failed to load history:', error)
-      return null
     }
-  }, [settings.max_history_fetch])
+    return result
+  }, [fetchHistory])
 
   // Initialize
   useEffect(() => {
@@ -538,36 +550,87 @@ function App() {
       setViewMode('history')
       setSearchQuery('')
       setSelectedSnippetId(null)
-      // Set flag to scroll to top after data loads
-      scrollToTopRef.current = true
-      const items = await loadHistory()
-      // Select the first (newest) item after loading history
-      if (items && items.length > 0) {
-        setSelectedId(items[0].id)
-      } else {
-        setSelectedId(null)
-      }
       loadSnippets()
+
+      // Fetch history data without setting state yet
+      const items = await fetchHistory()
+
+      // Batch set items and selectedId together with flushSync
+      // This ensures virtualizer sees correct selectedId when estimating heights
+      flushSync(() => {
+        if (items && items.length > 0) {
+          setItems(items)
+          setSelectedId(items[0].id)
+        } else {
+          setItems([])
+          setSelectedId(null)
+        }
+      })
+
+      // ALWAYS scroll to top when window is shown, regardless of selection
+      // This handles the case where selectedId doesn't change (same first item)
+      const scrollToTop = () => {
+        if (listRef.current) {
+          listRef.current.scrollTop = 0
+        }
+        // Also use virtualizer's scroll method
+        historyVirtualizer.scrollToIndex(0, { align: 'start' })
+      }
+
+      // Multiple attempts to ensure scroll works
+      scrollToTop()
+      requestAnimationFrame(scrollToTop)
+      requestAnimationFrame(() => requestAnimationFrame(scrollToTop))
+      setTimeout(scrollToTop, 50)
+
+      // Load images asynchronously
+      if (items) {
+        const imageItems = items.filter(i => i.item_type === 'image')
+        if (imageItems.length > 0) {
+          Promise.all(
+            imageItems.map(item =>
+              invoke<string>('get_image_asset_url', { relativePath: item.content })
+                .then(url => [item.content, url] as [string, string])
+                .catch(() => null)
+            )
+          ).then(entries => {
+            const validEntries = entries.filter((e): e is [string, string] => e !== null)
+            if (validEntries.length > 0) {
+              setImageCache(prev => {
+                const newCache = { ...prev }
+                validEntries.forEach(([key, url]) => { newCache[key] = url })
+                return newCache
+              })
+            }
+          })
+        }
+      }
+
       setTimeout(() => inputRef.current?.focus(), settings.focus_delay_ms)
     }
     window.addEventListener('powerclip:window-shown', handler)
     return () => window.removeEventListener('powerclip:window-shown', handler)
-  }, [loadHistory, loadSnippets, settings.focus_delay_ms])
+  }, [fetchHistory, loadSnippets, settings.focus_delay_ms, historyVirtualizer])
 
-  // Scroll to selected item using virtualizer's native scrollToIndex
+  // Scroll to selected item when using arrow keys (not on window show)
   useEffect(() => {
+    // Skip if this is triggered by window show (handled separately)
     if (viewMode === 'history' && selectedId !== null) {
       const idx = filteredItems.findIndex(item => item.id === selectedId)
-      if (idx >= 0) {
+      if (idx >= 0 && idx !== 0) {
+        // Only scroll for non-first items (arrow key navigation)
+        historyVirtualizer.measure()
         historyVirtualizer.scrollToIndex(idx, { align: 'auto' })
       }
     } else if (viewMode === 'snippets' && selectedSnippetId !== null) {
       const idx = filteredSnippets.findIndex(s => s.id === selectedSnippetId)
-      if (idx >= 0) {
+      if (idx >= 0 && idx !== 0) {
+        snippetsVirtualizer.measure()
         snippetsVirtualizer.scrollToIndex(idx, { align: 'auto' })
       }
     }
-  }, [selectedId, selectedSnippetId, viewMode, filteredItems, filteredSnippets, historyVirtualizer, snippetsVirtualizer])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, selectedSnippetId, viewMode])
 
   // Initial focus
   useEffect(() => {
