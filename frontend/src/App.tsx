@@ -40,6 +40,7 @@ function App() {
   const [showExtensions, setShowExtensions] = useState(false)
   const [semanticMode, setSemanticMode] = useState(false)
   const [semanticStatus, setSemanticStatus] = useState<SemanticStatus | null>(null)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
 
   // Snippets state
   const [viewMode, setViewMode] = useState<'history' | 'snippets'>('history')
@@ -260,6 +261,7 @@ function App() {
     invoke<Settings>('get_settings')
       .then(s => {
         setSettings(s)
+        setSettingsError(null) // Clear any previous error on success
         // Sync semantic enabled state with settings
         if (s.semantic_search_enabled) {
           invoke<SemanticStatus>('get_semantic_status')
@@ -483,6 +485,17 @@ function App() {
     window.addEventListener('powerclip:settings-changed', handler)
     return () => window.removeEventListener('powerclip:settings-changed', handler)
   }, [loadSettings])
+
+  // Listen for settings errors
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const error = (e as CustomEvent<string>).detail
+      setSettingsError(error)
+      console.error('[PowerClip] Settings error:', error)
+    }
+    window.addEventListener('powerclip:settings-error', handler)
+    return () => window.removeEventListener('powerclip:settings-error', handler)
+  }, [])
 
   // Listen for add-to-snippets hotkey
   useEffect(() => {
@@ -811,6 +824,7 @@ function App() {
         viewMode={viewMode}
         hotkeyModifiers={settings.hotkey_modifiers}
         hotkeyKey={settings.hotkey_key}
+        settingsError={settingsError}
       />
       <ResizeHandle />
     </div>

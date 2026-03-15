@@ -24,11 +24,13 @@ use tauri::{
     tray::TrayIconBuilder,
     menu::MenuBuilder,
     Manager,
+    Emitter,
     Size, PhysicalSize,
     Position, PhysicalPosition,
 };
 
 use crate::config::APP_NAME;
+use crate::app_settings::AppSettings;
 
 /// Tracks whether the settings dialog is open (prevents hide-on-blur).
 #[derive(Clone)]
@@ -51,6 +53,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), String> {
 
     let tray_menu = MenuBuilder::new(app)
         .text("show", "Show Window")
+        .text("settings", "Open Settings")
         .separator()
         .text("quit", "Quit")
         .build()
@@ -66,6 +69,13 @@ fn setup_tray(app: &tauri::App) -> Result<(), String> {
                 "show" => {
                     if let Some(window) = app.get_webview_window("main") {
                         let _ = window::show_and_notify(app, &window);
+                    }
+                }
+                "settings" => {
+                    // Open settings file in default editor
+                    let settings_path = crate::config::settings_path();
+                    if let Err(e) = open::that(settings_path) {
+                        logger::error("Tray", &format!("Failed to open settings: {}", e));
                     }
                 }
                 "quit" => std::process::exit(0),
@@ -132,7 +142,17 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
     // Register hotkey from saved settings
     let state = app.state::<HotkeyState>();
     let guard = state.manager.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
-    let settings = app_settings::load_settings().unwrap_or_default();
+    let (settings, settings_error) = app_settings::load_settings().unwrap_or_else(|e| {
+        logger::error("Main", &format!("Failed to load settings: {}", e));
+        (AppSettings::default(), Some(e))
+    });
+
+    // Emit settings error to frontend if there was an issue
+    if let Some(ref error_msg) = settings_error {
+        logger::error("Main", &format!("Settings error: {}", error_msg));
+        let _ = app.emit("powerclip:settings-error", error_msg.clone());
+    }
+
     hotkey::register_hotkey_with_settings(
         &guard,
         &state.current_hotkey,

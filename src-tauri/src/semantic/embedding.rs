@@ -16,7 +16,7 @@ use super::SemanticState;
 /// Loads API credentials from settings on each call so that settings changes
 /// take effect without a restart.
 pub fn compute_embedding(text: &str) -> Result<Vec<f32>, String> {
-    let settings = crate::app_settings::load_settings()
+    let settings = crate::app_settings::load_settings_simple()
         .map_err(|e| format!("Failed to load settings: {}", e))?;
 
     if !super::api::is_configured(&settings.embedding_api_url, &settings.embedding_api_key) {

@@ -9,7 +9,7 @@ use crate::logger;
 /// Get current application settings.
 #[tauri::command]
 pub async fn get_settings() -> Result<AppSettings, String> {
-    app_settings::load_settings()
+    app_settings::load_settings_simple()
 }
 
 /// Save application settings and re-register hotkey.
@@ -62,7 +62,7 @@ pub async fn open_settings_file() -> Result<(), String> {
 
     // Ensure the file exists before opening
     if !path.exists() {
-        let settings = app_settings::load_settings()?;
+        let (settings, _) = app_settings::load_settings()?;
         app_settings::save_settings(&settings)?;
     }
 

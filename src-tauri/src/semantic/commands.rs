@@ -48,7 +48,7 @@ pub async fn semantic_search(
     let min_score = match min_score {
         Some(score) => score,
         None => {
-            let settings = crate::app_settings::load_settings().unwrap_or_default();
+            let settings = crate::app_settings::load_settings_simple().unwrap_or_default();
             settings.min_similarity_score
         }
     };
@@ -138,7 +138,7 @@ pub async fn rebuild_semantic_index(app: tauri::AppHandle) -> Result<usize, Stri
     let state = app.state::<SemanticState>();
     let db_state = app.state::<crate::DatabaseState>();
 
-    let settings = crate::app_settings::load_settings().unwrap_or_default();
+    let settings = crate::app_settings::load_settings_simple().unwrap_or_default();
 
     {
         let mut index = state.index.write().map_err(|e| e.to_string())?;

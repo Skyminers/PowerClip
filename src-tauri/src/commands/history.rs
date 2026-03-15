@@ -109,7 +109,7 @@ pub async fn check_clipboard(app: tauri::AppHandle) -> Result<(), String> {
             }
         }
 
-        let settings = app_settings::load_settings().unwrap_or_default();
+        let settings = app_settings::load_settings_simple().unwrap_or_default();
         if settings.auto_cleanup_enabled && settings.max_items > 0 {
             if let Ok(deleted) = db::cleanup_old_items(&conn, settings.max_items) {
                 if deleted > 0 {

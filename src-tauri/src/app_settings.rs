@@ -313,27 +313,49 @@ fn strip_comments(content: &str) -> String {
 }
 
 /// Load settings from file.
-pub fn load_settings() -> Result<AppSettings, String> {
+/// Returns (settings, error_message) where error_message is Some if defaults were used due to parse error.
+pub fn load_settings() -> Result<(AppSettings, Option<String>), String> {
     let path = settings_path();
 
     if !path.exists() {
         // Write initial settings with comments
         fs::write(&path, initial_settings_content()).map_err(|e| e.to_string())?;
         // Parse and return default settings
-        return Ok(AppSettings::default());
+        return Ok((AppSettings::default(), None));
     }
 
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let content = fs::read_to_string(&path).map_err(|e| {
+        format!("Failed to read settings file: {}. Using defaults.", e)
+    })?;
     let json = strip_comments(&content);
 
-    let raw: serde_json::Value = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+    // Try to parse as JSON first
+    let raw: serde_json::Value = match serde_json::from_str(&json) {
+        Ok(v) => v,
+        Err(e) => {
+            let error_msg = format!("Settings JSON parse error: {}. Using defaults.", e);
+            logger::error("Settings", &error_msg);
+            return Ok((AppSettings::default(), Some(error_msg)));
+        }
+    };
+
     let extensions_missing = raw.get("extensions").is_none();
 
-    let mut settings: AppSettings = serde_json::from_value(raw).map_err(|e| e.to_string())?;
+    // Try to deserialize into AppSettings
+    let settings: AppSettings = match serde_json::from_value(raw) {
+        Ok(s) => s,
+        Err(e) => {
+            let error_msg = format!("Settings validation error: {}. Using defaults.", e);
+            logger::error("Settings", &error_msg);
+            return Ok((AppSettings::default(), Some(error_msg)));
+        }
+    };
+
+    let mut final_settings = settings;
 
     if extensions_missing {
         // Add default extensions but don't overwrite the file (preserve comments)
-        settings.extensions = vec![
+        final_settings.extensions = vec![
             Extension {
                 name: "To Uppercase".to_string(),
                 command: if cfg!(target_os = "windows") {
@@ -347,7 +369,12 @@ pub fn load_settings() -> Result<AppSettings, String> {
         ];
     }
 
-    Ok(settings)
+    Ok((final_settings, None))
+}
+
+/// Load settings, returning only the settings (for backward compatibility).
+pub fn load_settings_simple() -> Result<AppSettings, String> {
+    load_settings().map(|(s, _)| s)
 }
 
 /// Initialize the semantic enabled state tracker.
@@ -398,7 +425,12 @@ pub fn start_settings_watcher(app_handle: tauri::AppHandle) -> Result<(), String
                         logger::info("Settings", "Settings file modified, reloading...");
 
                         match load_settings() {
-                            Ok(settings) => {
+                            Ok((settings, error_msg)) => {
+                                // Emit error to frontend if settings had issues
+                                if let Some(err) = &error_msg {
+                                    let _ = app.emit("powerclip:settings-error", err.clone());
+                                }
+
                                 // Re-register hotkey
                                 if let Some(hotkey_state) = app.try_state::<crate::HotkeyState>() {
                                     if let Ok(guard) = hotkey_state.manager.lock() {
@@ -458,6 +490,7 @@ pub fn start_settings_watcher(app_handle: tauri::AppHandle) -> Result<(), String
                             }
                             Err(e) => {
                                 logger::error("Settings", &format!("Failed to load settings: {}", e));
+                                let _ = app.emit("powerclip:settings-error", e);
                             }
                         }
                     }
