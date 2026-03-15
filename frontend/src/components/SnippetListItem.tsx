@@ -55,7 +55,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
       ref={ref}
       data-id={snippet.id}
       data-index={dataIndex}
-      className={`relative px-4 py-3 cursor-pointer ${isSelected ? 'selected-indicator' : ''} ${isDeleting ? 'opacity-50' : ''}`}
+      className={`relative px-4 py-3 cursor-pointer ${isSelected ? 'selected-indicator selected-animate' : ''} ${isDeleting ? 'deleting' : ''}`}
       style={{ backgroundColor: isSelected ? colors.selected : 'transparent', ...style }}
       onClick={() => !isDeleting && onSelect(snippet.id)}
       onDoubleClick={() => !isDeleting && onCopy(snippet)}
@@ -92,7 +92,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
             <>
               <button
                 onClick={handleEditClick}
-                className="p-1 rounded hover:bg-white/10 transition-colors"
+                className="p-1 rounded hover:bg-white/10 transition-colors button-press"
                 style={{ color: colors.textMuted }}
                 title="Edit"
               >
@@ -102,7 +102,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
               </button>
               <button
                 onClick={handleDeleteClick}
-                className="p-1 rounded hover:bg-red-500/20 transition-colors"
+                className="p-1 rounded hover:bg-red-500/20 transition-colors button-press"
                 style={{ color: '#ef4444' }}
                 title="Delete"
               >

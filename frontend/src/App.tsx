@@ -129,9 +129,8 @@ function App() {
         return settings.image_preview_max_height + 40
       }
       // Selected text items show preview text, need more height
-      // Use a larger estimate to avoid overflow before measurement
       if (item && selectedId === item.id) {
-        return 90 // Account for preview text (2 lines + margin)
+        return 90
       }
       return 56
     },
@@ -552,11 +551,22 @@ function App() {
       setSelectedSnippetId(null)
       loadSnippets()
 
-      // Fetch history data without setting state yet
       const items = await fetchHistory()
 
-      // Batch set items and selectedId together with flushSync
-      // This ensures virtualizer sees correct selectedId when estimating heights
+      // Reset scroll position BEFORE setting state.
+      // The virtualizer reads DOM scrollTop during render. If we reset after
+      // setting state, the virtualizer caches the old scrollTop value.
+      const resetScroll = () => {
+        if (listRef.current) {
+          listRef.current.scrollTop = 0
+          listRef.current.dispatchEvent(new Event('scroll', { bubbles: false }))
+        }
+      }
+
+      resetScroll()
+      await new Promise(resolve => requestAnimationFrame(resolve))
+      resetScroll()
+
       flushSync(() => {
         if (items && items.length > 0) {
           setItems(items)
@@ -567,21 +577,7 @@ function App() {
         }
       })
 
-      // ALWAYS scroll to top when window is shown, regardless of selection
-      // This handles the case where selectedId doesn't change (same first item)
-      const scrollToTop = () => {
-        if (listRef.current) {
-          listRef.current.scrollTop = 0
-        }
-        // Also use virtualizer's scroll method
-        historyVirtualizer.scrollToIndex(0, { align: 'start' })
-      }
-
-      // Multiple attempts to ensure scroll works
-      scrollToTop()
-      requestAnimationFrame(scrollToTop)
-      requestAnimationFrame(() => requestAnimationFrame(scrollToTop))
-      setTimeout(scrollToTop, 50)
+      requestAnimationFrame(resetScroll)
 
       // Load images asynchronously
       if (items) {
@@ -610,7 +606,7 @@ function App() {
     }
     window.addEventListener('powerclip:window-shown', handler)
     return () => window.removeEventListener('powerclip:window-shown', handler)
-  }, [fetchHistory, loadSnippets, settings.focus_delay_ms, historyVirtualizer])
+  }, [fetchHistory, loadSnippets, settings.focus_delay_ms])
 
   // Scroll to selected item when using arrow keys (not on window show)
   useEffect(() => {
@@ -667,7 +663,7 @@ function App() {
             </span>
           )}
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="no-drag p-1 rounded hover:bg-white/10" style={{ color: colors.textMuted }}>
+            <button onClick={() => setSearchQuery('')} className="no-drag p-1 rounded hover:bg-white/10 button-press" style={{ color: colors.textMuted }}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -682,7 +678,7 @@ function App() {
           />
           <button
             onClick={() => { setViewMode(prev => prev === 'history' ? 'snippets' : 'history'); setSearchQuery(''); setSelectedId(null); setSelectedSnippetId(null); }}
-            className={`p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag ${viewMode === 'snippets' ? 'bg-white/10' : ''}`}
+            className={`p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag mode-switch-animate ${viewMode === 'snippets' ? 'bg-white/10' : ''}`}
             title={`Toggle quick commands (${isDarwin ? 'Cmd' : 'Ctrl'}+P)`}
             style={{ color: viewMode === 'snippets' ? colors.accent : colors.textMuted }}
           >
@@ -693,7 +689,7 @@ function App() {
           {viewMode === 'snippets' && (
             <button
               onClick={() => setShowAddSnippetDialog(true)}
-              className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag"
+              className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag button-press"
               title="Add new quick command"
               style={{ color: colors.textMuted }}
             >
@@ -704,7 +700,7 @@ function App() {
           )}
           <button
             onClick={() => invoke('open_settings_file').catch(() => {})}
-            className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag"
+            className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag button-press"
             title="Edit config file (Cmd+,)"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

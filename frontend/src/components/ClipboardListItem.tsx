@@ -67,7 +67,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
       ref={ref}
       data-id={item.id}
       data-index={dataIndex}
-      className={`relative px-4 py-3 cursor-pointer ${isSelected ? 'selected-indicator' : ''} ${isDeleting ? 'opacity-50' : ''}`}
+      className={`relative px-4 py-3 cursor-pointer ${isSelected ? 'selected-indicator selected-animate' : ''} ${isDeleting ? 'deleting' : ''}`}
       style={{ backgroundColor: isSelected ? colors.selected : 'transparent', ...style }}
       onClick={() => !isDeleting && onSelect(item.id)}
       onDoubleClick={() => !isDeleting && onCopy(item)}
@@ -126,7 +126,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
               {item.item_type === 'text' && onAddToSnippets && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onAddToSnippets(item); }}
-                  className="p-1 rounded hover:bg-yellow-500/20 transition-colors"
+                  className="p-1 rounded hover:bg-yellow-500/20 transition-colors button-press"
                   style={{ color: '#eab308' }}
                   title="Add to Quick Commands"
                 >
@@ -138,7 +138,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
               {/* Delete button */}
               <button
                 onClick={handleDeleteClick}
-                className="p-1 rounded hover:bg-red-500/20 transition-colors"
+                className="p-1 rounded hover:bg-red-500/20 transition-colors button-press"
                 style={{ color: '#ef4444' }}
                 title="Delete"
               >

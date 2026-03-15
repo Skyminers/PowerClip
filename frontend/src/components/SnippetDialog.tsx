@@ -66,7 +66,7 @@ export function SnippetDialog({
       tabIndex={0}
     >
       <div
-        className="rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden"
+        className="rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden dialog-animate"
         style={{ backgroundColor: colors.bgSecondary, border: `1px solid ${colors.border}` }}
         onClick={e => e.stopPropagation()}
       >
