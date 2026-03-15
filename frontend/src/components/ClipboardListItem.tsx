@@ -1,20 +1,23 @@
 /**
  * Clipboard list item component
+ * Fixed height design: text items show one line, image items show label + preview
  */
 
 import { memo, useState, useCallback, forwardRef } from 'react'
 import type { ClipboardItem, ImageCache } from '../types'
 import { theme } from '../theme'
-import { formatContent, formatTime, getPreview } from '../utils/helpers'
+import { formatContent, formatTime } from '../utils/helpers'
 import { MAX_SHORTCUT_INDEX } from '../constants'
 import { IconDocument, IconImage } from './icons'
 
 const colors = theme.colors
 
+// Fixed heights for item types
+export const TEXT_ITEM_HEIGHT = 48
+export const IMAGE_ITEM_HEIGHT = 80
+
 /**
  * Format similarity score as percentage
- * @param score Similarity score (0.0 - 1.0)
- * @returns Formatted string (0.00% - 100.00%)
  */
 function formatScore(score: number): string {
   return (score * 100).toFixed(2) + '%'
@@ -25,7 +28,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   index: number
   isSelected: boolean
   imageCache: ImageCache
-  semanticScore?: number  // AI search similarity score (0.0 - 1.0)
+  semanticScore?: number
   contentTruncateLength?: number
   imagePreviewMaxWidth?: number
   imagePreviewMaxHeight?: number
@@ -42,8 +45,8 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   imageCache,
   semanticScore,
   contentTruncateLength = 50,
-  imagePreviewMaxWidth = 120,
-  imagePreviewMaxHeight = 80,
+  imagePreviewMaxWidth = 100,
+  imagePreviewMaxHeight = 48,
   onSelect,
   onCopy,
   onDelete,
@@ -62,49 +65,45 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
     }
   }, [item.id, isDeleting, onDelete])
 
+  const isImage = item.item_type === 'image'
+
   return (
     <li
       ref={ref}
       data-id={item.id}
       data-index={dataIndex}
-      className={`relative px-4 py-3 cursor-pointer ${isSelected ? 'selected-indicator selected-animate' : ''} ${isDeleting ? 'deleting' : ''}`}
-      style={{ backgroundColor: isSelected ? colors.selected : 'transparent', ...style }}
+      className={`relative px-4 cursor-pointer ${isSelected ? 'selected-indicator' : ''} ${isDeleting ? 'deleting' : ''}`}
+      style={{
+        backgroundColor: isSelected ? colors.selected : 'transparent',
+        height: isImage ? IMAGE_ITEM_HEIGHT : TEXT_ITEM_HEIGHT,
+        display: 'flex',
+        alignItems: 'center',
+        ...style
+      }}
       onClick={() => !isDeleting && onSelect(item.id)}
       onDoubleClick={() => !isDeleting && onCopy(item)}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 w-full">
         {/* Content area */}
-        <div className="flex items-start gap-3 min-w-0 flex-1">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <span
-            className={`text-sm flex-shrink-0 mt-0.5 ${isSelected ? 'opacity-90' : ''}`}
+            className="text-sm flex-shrink-0"
             style={{ color: isSelected ? colors.text : colors.textMuted }}
           >
-            {item.item_type === 'text' ? <IconDocument /> : <IconImage />}
+            {isImage ? <IconImage /> : <IconDocument />}
           </span>
-          <div className="flex-1 min-w-0">
-            {item.item_type === 'text' ? (
-              <>
-                <p className="text-sm truncate" style={{ color: colors.text }}>
-                  {formatContent(item.content, item.item_type, contentTruncateLength)}
-                </p>
-                {isSelected && (
-                  <p className="text-xs mt-1.5 line-clamp-2 opacity-70 fade-in" style={{ color: colors.text }}>
-                    {getPreview(item.content, 200)}
-                  </p>
-                )}
-              </>
-            ) : (
-              <div className="flex flex-col gap-1">
-                <p className="text-xs" style={{ color: colors.textMuted }}>Image</p>
+          <div className="flex-1 min-w-0 flex items-center">
+            {isImage ? (
+              <div className="flex items-center gap-3">
+                <span className="text-xs" style={{ color: colors.textMuted }}>Image</span>
                 {imageCache[item.content] ? (
                   <img
                     src={imageCache[item.content]}
-                    alt="Clipboard image"
-                    className="object-contain rounded border"
+                    alt="Preview"
+                    className="object-contain rounded"
                     style={{
-                      borderColor: colors.border,
                       maxWidth: `${imagePreviewMaxWidth}px`,
                       maxHeight: `${imagePreviewMaxHeight}px`
                     }}
@@ -113,6 +112,10 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
                   <span className="text-xs" style={{ color: colors.textMuted }}>Loading...</span>
                 )}
               </div>
+            ) : (
+              <p className="text-sm truncate" style={{ color: colors.text }}>
+                {formatContent(item.content, item.item_type, contentTruncateLength)}
+              </p>
             )}
           </div>
         </div>
@@ -122,7 +125,6 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
           {/* Action buttons */}
           {showActions && !isDeleting && (
             <>
-              {/* Add to snippets button - only for text items */}
               {item.item_type === 'text' && onAddToSnippets && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onAddToSnippets(item); }}
@@ -135,7 +137,6 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
                   </svg>
                 </button>
               )}
-              {/* Delete button */}
               <button
                 onClick={handleDeleteClick}
                 className="p-1 rounded hover:bg-red-500/20 transition-colors button-press"

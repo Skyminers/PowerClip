@@ -22,7 +22,10 @@ import {
   SemanticToggle,
   SnippetListItem,
   AddSnippetDialog,
-  SnippetDialog
+  SnippetDialog,
+  TEXT_ITEM_HEIGHT,
+  IMAGE_ITEM_HEIGHT,
+  SNIPPET_ITEM_HEIGHT
 } from './components'
 
 const colors = theme.colors
@@ -43,6 +46,9 @@ function App() {
   const [snippets, setSnippets] = useState<Snippet[]>([])
   const [selectedSnippetId, setSelectedSnippetId] = useState<number | null>(null)
   const [addDialogItem, setAddDialogItem] = useState<ClipboardItem | null>(null)
+
+  // List key - changes when window is shown to force virtualizer reset
+  const [listKey, setListKey] = useState(0)
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null)
   const [showAddSnippetDialog, setShowAddSnippetDialog] = useState(false)
 
@@ -118,60 +124,24 @@ function App() {
     [snippets, debouncedSearchLower]
   )
 
-  // Virtual scrolling for history list
+  // Virtual scrolling for history list - fixed height per item type
   const historyVirtualizer = useVirtualizer({
     count: filteredItems.length,
     getScrollElement: () => listRef.current,
     estimateSize: (index) => {
       const item = filteredItems[index]
-      // Image items need more height (preview height + padding + text)
-      if (item?.item_type === 'image') {
-        return settings.image_preview_max_height + 40
-      }
-      // Selected text items show preview text, need more height
-      if (item && selectedId === item.id) {
-        return 90
-      }
-      return 56
+      return item?.item_type === 'image' ? IMAGE_ITEM_HEIGHT : TEXT_ITEM_HEIGHT
     },
     overscan: 5,
-    measureElement: (element) => element?.getBoundingClientRect().height ?? 56,
   })
 
-  // Virtual scrolling for snippets list
+  // Virtual scrolling for snippets list - fixed height
   const snippetsVirtualizer = useVirtualizer({
     count: filteredSnippets.length,
     getScrollElement: () => listRef.current,
-    estimateSize: (index) => {
-      const snippet = filteredSnippets[index]
-      // Selected snippets show preview text, need more height
-      if (snippet && selectedSnippetId === snippet.id) {
-        return 90
-      }
-      return 56
-    },
+    estimateSize: () => SNIPPET_ITEM_HEIGHT,
     overscan: 5,
-    measureElement: (element) => element?.getBoundingClientRect().height ?? 56,
   })
-
-  // Re-measure items when filtered list changes (e.g., during search)
-  useEffect(() => {
-    historyVirtualizer.measure()
-  }, [filteredItems, historyVirtualizer])
-
-  useEffect(() => {
-    snippetsVirtualizer.measure()
-  }, [filteredSnippets, snippetsVirtualizer])
-
-  // Re-measure when selection changes (item height changes due to preview text)
-  useEffect(() => {
-    // Force virtualizer to recalculate positions with new estimate
-    historyVirtualizer.measure()
-  }, [selectedId, historyVirtualizer])
-
-  useEffect(() => {
-    snippetsVirtualizer.measure()
-  }, [selectedSnippetId, snippetsVirtualizer])
 
   // Copy item to clipboard
   const copyItem = useCallback(async (item: ClipboardItem) => {
@@ -551,22 +521,12 @@ function App() {
       setSelectedSnippetId(null)
       loadSnippets()
 
+      // Force virtualizer to reset by changing the list key
+      setListKey(k => k + 1)
+
       const items = await fetchHistory()
 
-      // Reset scroll position BEFORE setting state.
-      // The virtualizer reads DOM scrollTop during render. If we reset after
-      // setting state, the virtualizer caches the old scrollTop value.
-      const resetScroll = () => {
-        if (listRef.current) {
-          listRef.current.scrollTop = 0
-          listRef.current.dispatchEvent(new Event('scroll', { bubbles: false }))
-        }
-      }
-
-      resetScroll()
-      await new Promise(resolve => requestAnimationFrame(resolve))
-      resetScroll()
-
+      // Update state synchronously
       flushSync(() => {
         if (items && items.length > 0) {
           setItems(items)
@@ -577,7 +537,18 @@ function App() {
         }
       })
 
+      // Reset scroll position after state update and DOM recreation
+      // Multiple attempts to ensure it works
+      const resetScroll = () => {
+        if (listRef.current) {
+          listRef.current.scrollTop = 0
+        }
+      }
+
       requestAnimationFrame(resetScroll)
+      setTimeout(resetScroll, 10)
+      setTimeout(resetScroll, 50)
+      setTimeout(resetScroll, 100)
 
       // Load images asynchronously
       if (items) {
@@ -608,20 +579,32 @@ function App() {
     return () => window.removeEventListener('powerclip:window-shown', handler)
   }, [fetchHistory, loadSnippets, settings.focus_delay_ms])
 
+  // Reset scroll when listKey changes (window is shown)
+  useEffect(() => {
+    if (listKey > 0) {
+      // Use multiple attempts to ensure scroll reset works
+      const resetScroll = () => {
+        if (listRef.current) {
+          listRef.current.scrollTop = 0
+        }
+      }
+      resetScroll()
+      requestAnimationFrame(resetScroll)
+      setTimeout(resetScroll, 10)
+      setTimeout(resetScroll, 50)
+    }
+  }, [listKey])
+
   // Scroll to selected item when using arrow keys (not on window show)
   useEffect(() => {
-    // Skip if this is triggered by window show (handled separately)
     if (viewMode === 'history' && selectedId !== null) {
       const idx = filteredItems.findIndex(item => item.id === selectedId)
       if (idx >= 0 && idx !== 0) {
-        // Only scroll for non-first items (arrow key navigation)
-        historyVirtualizer.measure()
         historyVirtualizer.scrollToIndex(idx, { align: 'auto' })
       }
     } else if (viewMode === 'snippets' && selectedSnippetId !== null) {
       const idx = filteredSnippets.findIndex(s => s.id === selectedSnippetId)
       if (idx >= 0 && idx !== 0) {
-        snippetsVirtualizer.measure()
         snippetsVirtualizer.scrollToIndex(idx, { align: 'auto' })
       }
     }
@@ -748,7 +731,7 @@ function App() {
         />
       )}
 
-      <ul ref={listRef} className="flex-1 overflow-y-auto scrollbar-thin" style={{ backgroundColor: colors.bg }} onKeyDown={handleKeyDown} tabIndex={0}>
+      <ul key={listKey} ref={listRef} className="flex-1 overflow-y-auto scrollbar-thin" style={{ backgroundColor: colors.bg }} onKeyDown={handleKeyDown} tabIndex={0}>
         {viewMode === 'history' ? (
           <>
             {filteredItems.length > 0 ? (
@@ -758,7 +741,6 @@ function App() {
                   return (
                     <ClipboardListItem
                       key={item.id}
-                      ref={historyVirtualizer.measureElement}
                       item={item}
                       index={virtualRow.index}
                       isSelected={selectedId === item.id}
@@ -790,7 +772,6 @@ function App() {
                   return (
                     <SnippetListItem
                       key={snippet.id}
-                      ref={snippetsVirtualizer.measureElement}
                       snippet={snippet}
                       index={virtualRow.index}
                       isSelected={selectedSnippetId === snippet.id}

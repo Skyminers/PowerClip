@@ -95,14 +95,6 @@ ul:focus {
   outline: none;
 }
 
-/* Line clamp utilities */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
 /* List items */
 li {
   background-color: inherit;
@@ -140,39 +132,6 @@ li {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-}
-
-/* List item staggered fade-in */
-@keyframes listFadeIn {
-  from {
-    opacity: 0;
-    transform: translateX(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.list-item-animate {
-  animation: listFadeIn 0.2s ease-out forwards;
-}
-
-/* Selection pulse effect */
-@keyframes selectPulse {
-  0% {
-    box-shadow: inset 3px 0 0 0 transparent;
-  }
-  50% {
-    box-shadow: inset 4px 0 0 0 #89b4fa;
-  }
-  100% {
-    box-shadow: inset 3px 0 0 0 #89b4fa;
-  }
-}
-
-.selected-animate {
-  animation: selectPulse 0.25s ease-out;
 }
 
 /* Delete fade-out */

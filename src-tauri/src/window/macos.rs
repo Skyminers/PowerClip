@@ -24,7 +24,8 @@ pub fn activate_app(bundle_id: &str) {
             }
             let current = std::ffi::CStr::from_ptr(utf8).to_string_lossy();
             if current == bundle_id {
-                let _: () = msg_send![app, activateWithOptions: 1usize];
+                // activateWithOptions: returns BOOL on NSRunningApplication
+                let _: bool = msg_send![app, activateWithOptions: 1usize];
                 return;
             }
         }
