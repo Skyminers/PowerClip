@@ -29,7 +29,9 @@ notify = "6"
 ureq = { version = "2", features = ["json"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.5"
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-app-kit = "0.3"
 dispatch = "0.2"
 
 [target.'cfg(windows)'.dependencies]

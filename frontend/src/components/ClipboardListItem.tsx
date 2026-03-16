@@ -8,13 +8,14 @@ import type { ClipboardItem, ImageCache } from '../types'
 import { theme } from '../theme'
 import { formatContent, formatTime } from '../utils/helpers'
 import { MAX_SHORTCUT_INDEX } from '../constants'
-import { IconDocument, IconImage } from './icons'
+import { IconDocument, IconImage, IconFile } from './icons'
 
 const colors = theme.colors
 
 // Fixed heights for item types
 export const TEXT_ITEM_HEIGHT = 48
 export const IMAGE_ITEM_HEIGHT = 80
+export const FILE_ITEM_HEIGHT = 48
 
 /**
  * Format similarity score as percentage
@@ -66,6 +67,17 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   }, [item.id, isDeleting, onDelete])
 
   const isImage = item.item_type === 'image'
+  const isFile = item.item_type === 'file'
+
+  // Calculate item height based on type
+  const itemHeight = isImage ? IMAGE_ITEM_HEIGHT : TEXT_ITEM_HEIGHT
+
+  // Get icon based on item type
+  const getItemIcon = () => {
+    if (isImage) return <IconImage />
+    if (isFile) return <IconFile />
+    return <IconDocument />
+  }
 
   return (
     <li
@@ -75,7 +87,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
       className={`relative px-4 cursor-pointer ${isSelected ? 'selected-indicator' : ''} ${isDeleting ? 'deleting' : ''}`}
       style={{
         backgroundColor: isSelected ? colors.selected : 'transparent',
-        height: isImage ? IMAGE_ITEM_HEIGHT : TEXT_ITEM_HEIGHT,
+        height: itemHeight,
         display: 'flex',
         alignItems: 'center',
         ...style
@@ -92,7 +104,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
             className="text-sm flex-shrink-0"
             style={{ color: isSelected ? colors.text : colors.textMuted }}
           >
-            {isImage ? <IconImage /> : <IconDocument />}
+            {getItemIcon()}
           </span>
           <div className="flex-1 min-w-0 flex items-center">
             {isImage ? (
@@ -111,6 +123,13 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
                 ) : (
                   <span className="text-xs" style={{ color: colors.textMuted }}>Loading...</span>
                 )}
+              </div>
+            ) : isFile ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs" style={{ color: colors.textMuted }}>File</span>
+                <p className="text-sm truncate" style={{ color: colors.text }}>
+                  {formatContent(item.content, item.item_type, contentTruncateLength)}
+                </p>
               </div>
             ) : (
               <p className="text-sm truncate" style={{ color: colors.text }}>

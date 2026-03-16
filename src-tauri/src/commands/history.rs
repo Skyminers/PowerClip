@@ -32,6 +32,13 @@ pub async fn copy_to_clipboard(item: ClipboardItem) -> Result<(), String> {
         return copy_image_to_clipboard(&item.content);
     }
 
+    if item.item_type == "file" {
+        // Parse JSON array of file paths
+        let paths: Vec<String> = serde_json::from_str(&item.content)
+            .map_err(|e| format!("Failed to parse file paths: {}", e))?;
+        return clipboard::set_clipboard_files(&paths);
+    }
+
     clipboard::set_clipboard_text(&item.content).map_err(|e| e.to_string())
 }
 
@@ -89,6 +96,13 @@ pub async fn check_clipboard(app: tauri::AppHandle) -> Result<(), String> {
             }
 
             db::save_item(&conn, "image", &relative_path, &hash).map_err(|e| e.to_string())?
+        }
+        ClipboardContent::Files(files) => {
+            // Store file paths as JSON array
+            let content = serde_json::to_string(&files.paths)
+                .map_err(|e| format!("Failed to serialize file paths: {}", e))?;
+            let hash = db::calculate_hash(content.as_bytes());
+            db::save_item(&conn, "file", &content, &hash).map_err(|e| e.to_string())?
         }
     };
 

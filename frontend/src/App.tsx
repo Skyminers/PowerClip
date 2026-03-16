@@ -25,6 +25,7 @@ import {
   SnippetDialog,
   TEXT_ITEM_HEIGHT,
   IMAGE_ITEM_HEIGHT,
+  FILE_ITEM_HEIGHT,
   SNIPPET_ITEM_HEIGHT
 } from './components'
 
@@ -131,7 +132,9 @@ function App() {
     getScrollElement: () => listRef.current,
     estimateSize: (index) => {
       const item = filteredItems[index]
-      return item?.item_type === 'image' ? IMAGE_ITEM_HEIGHT : TEXT_ITEM_HEIGHT
+      if (item?.item_type === 'image') return IMAGE_ITEM_HEIGHT
+      if (item?.item_type === 'file') return FILE_ITEM_HEIGHT
+      return TEXT_ITEM_HEIGHT
     },
     overscan: 5,
   })
