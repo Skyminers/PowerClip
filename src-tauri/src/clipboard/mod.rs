@@ -70,6 +70,16 @@ fn get_clipboard_content_impl() -> Option<ClipboardContent> {
         }
     }
 
+    // Check for files on Windows
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(files) = get_clipboard_files_windows() {
+            if !files.paths.is_empty() {
+                return Some(ClipboardContent::Files(files));
+            }
+        }
+    }
+
     let mut clipboard = Clipboard::new().ok()?;
 
     if let Ok(image) = clipboard.get_image() {
@@ -233,7 +243,7 @@ pub fn set_clipboard_files(paths: &[String]) -> Result<(), String> {
 fn set_clipboard_files_impl(paths: &[String]) -> Result<(), String> {
     use objc2::rc::Retained;
     use objc2_app_kit::NSPasteboard;
-    use objc2_foundation::{NSArray, NSString, NSPropertyListSerialization, NSObject};
+    use objc2_foundation::{NSArray, NSString, NSPropertyListSerialization};
 
     if paths.is_empty() {
         return Err("No file paths provided".to_string());
@@ -268,8 +278,232 @@ fn set_clipboard_files_impl(paths: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// Internal implementation for setting clipboard files (non-macOS stub).
-#[cfg(not(target_os = "macos"))]
+/// Internal implementation for setting clipboard files (Windows).
+#[cfg(target_os = "windows")]
+fn set_clipboard_files_impl(paths: &[String]) -> Result<(), String> {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::System::DataExchange::{
+        OpenClipboard, CloseClipboard, EmptyClipboard, SetClipboardData,
+        RegisterClipboardFormatW,
+    };
+    use windows::Win32::Storage::FileSystem::DROPFILES;
+
+    if paths.is_empty() {
+        return Err("No file paths provided".to_string());
+    }
+
+    unsafe {
+        // Open clipboard
+        if OpenClipboard(HWND(0)).is_err() {
+            return Err("Failed to open clipboard".to_string());
+        }
+
+        // Empty clipboard
+        if EmptyClipboard().is_err() {
+            let _ = CloseClipboard();
+            return Err("Failed to empty clipboard".to_string());
+        }
+
+        // Calculate the size needed for DROPFILES structure
+        // DROPFILES header + wide strings (each path + null terminator) + final double null
+        let header_size = std::mem::size_of::<DROPFILES>();
+        let mut strings_size = 0usize;
+
+        // Convert paths to wide strings
+        let wide_paths: Vec<Vec<u16>> = paths
+            .iter()
+            .map(|p| p.encode_utf16().chain(std::iter::once(0)).collect())
+            .collect();
+
+        for wp in &wide_paths {
+            strings_size += wp.len() * 2;
+        }
+        // Add final null terminator
+        strings_size += 2;
+
+        let total_size = header_size + strings_size;
+
+        // Allocate memory for DROPFILES
+        let h_mem = windows::Win32::Foundation::GlobalAlloc(
+            windows::Win32::Foundation::GMEM_MOVEABLE,
+            total_size,
+        ).map_err(|e| format!("Failed to allocate memory: {}", e))?;
+
+        let ptr = windows::Win32::Foundation::GlobalLock(h_mem)
+            .map_err(|e| format!("Failed to lock memory: {}", e))?;
+
+        // Build DROPFILES structure
+        let drop_files = DROPFILES {
+            pFiles: header_size as u32,
+            pt: windows::Win32::Foundation::POINT { x: 0, y: 0 },
+            fNC: windows::Win32::Foundation::BOOL(0),
+            fWide: windows::Win32::Foundation::BOOL(1),
+        };
+
+        // Copy header
+        std::ptr::copy_nonoverlapping(
+            &drop_files as *const _ as *const u8,
+            ptr,
+            header_size,
+        );
+
+        // Copy paths
+        let mut offset = header_size;
+        for wp in &wide_paths {
+            let bytes: Vec<u8> = wp.iter().flat_map(|c| [*c as u8, (*c >> 8) as u8]).collect();
+            std::ptr::copy_nonoverlapping(
+                bytes.as_ptr(),
+                ptr.add(offset),
+                bytes.len(),
+            );
+            offset += bytes.len();
+        }
+
+        // Add final null terminator
+        std::ptr::write(ptr.add(offset) as *mut u16, 0);
+
+        let _ = windows::Win32::Foundation::GlobalUnlock(h_mem);
+
+        // Register CF_HDROP format (it's a standard format, ID = 15)
+        let cf_hdrop = 15u32;
+
+        // Set clipboard data
+        if SetClipboardData(cf_hdrop, h_mem.0).is_err() {
+            let _ = CloseClipboard();
+            return Err("Failed to set clipboard data".to_string());
+        }
+
+        let _ = CloseClipboard();
+    }
+
+    Ok(())
+}
+
+/// Internal implementation for setting clipboard files (Linux stub).
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn set_clipboard_files_impl(_paths: &[String]) -> Result<(), String> {
-    Err("File clipboard operations are only supported on macOS".to_string())
+    Err("File clipboard operations are only supported on macOS and Windows".to_string())
+}
+
+/// Get file paths from Windows clipboard using CF_HDROP format.
+#[cfg(target_os = "windows")]
+fn get_clipboard_files_windows() -> Option<FileData> {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::System::DataExchange::{
+        OpenClipboard, CloseClipboard, GetClipboardData,
+    };
+    use windows::Win32::Storage::FileSystem::DROPFILES;
+
+    unsafe {
+        // Open clipboard
+        if OpenClipboard(HWND(0)).is_err() {
+            return None;
+        }
+
+        // CF_HDROP = 15
+        let cf_hdrop = 15u32;
+
+        // Get clipboard data
+        let handle = match GetClipboardData(cf_hdrop) {
+            Ok(h) => h,
+            Err(_) => {
+                let _ = CloseClipboard();
+                return None;
+            }
+        };
+
+        if handle.0 == 0 {
+            let _ = CloseClipboard();
+            return None;
+        }
+
+        // Lock the memory
+        let ptr = windows::Win32::Foundation::GlobalLock(handle);
+        if ptr.is_err() {
+            let _ = CloseClipboard();
+            return None;
+        }
+        let ptr = ptr.unwrap();
+
+        if ptr.is_null() {
+            let _ = CloseClipboard();
+            return None;
+        }
+
+        // Read DROPFILES structure
+        let drop_files = &*(ptr as *const DROPFILES);
+
+        // Check if it's wide strings
+        let is_wide = drop_files.fWide.as_bool();
+
+        // Get offset to file list
+        let offset = drop_files.pFiles as usize;
+        let file_list_ptr = ptr.add(offset);
+
+        let mut paths = Vec::new();
+
+        if is_wide {
+            // Wide strings (UTF-16)
+            let mut current = file_list_ptr as *const u16;
+            loop {
+                // Read string length
+                let mut len = 0usize;
+                while *current.add(len) != 0 {
+                    len += 1;
+                }
+
+                if len == 0 {
+                    break; // Empty string means end of list
+                }
+
+                // Read the string
+                let slice = std::slice::from_raw_parts(current, len);
+                if let Ok(path) = String::from_utf16(slice) {
+                    if !path.is_empty() {
+                        paths.push(path);
+                    }
+                }
+
+                // Move to next string (skip null terminator)
+                current = current.add(len + 1);
+            }
+        } else {
+            // ANSI strings
+            let mut current = file_list_ptr as *const i8;
+            loop {
+                let mut len = 0usize;
+                while *current.add(len) != 0 {
+                    len += 1;
+                }
+
+                if len == 0 {
+                    break;
+                }
+
+                let slice = std::slice::from_raw_parts(current, len);
+                if let Ok(path) = std::ffi::CStr::from_bytes_with_nul(
+                    &slice.iter().map(|&c| c as u8).chain(std::iter::once(0)).collect::<Vec<_>>()
+                ) {
+                    if let Ok(path_str) = path.to_str() {
+                        if !path_str.is_empty() {
+                            paths.push(path_str.to_string());
+                        }
+                    }
+                }
+
+                current = current.add(len + 1);
+            }
+        }
+
+        let _ = windows::Win32::Foundation::GlobalUnlock(handle);
+        let _ = CloseClipboard();
+
+        if paths.is_empty() {
+            None
+        } else {
+            Some(FileData { paths })
+        }
+    }
 }
