@@ -281,14 +281,11 @@ fn set_clipboard_files_impl(paths: &[String]) -> Result<(), String> {
 /// Internal implementation for setting clipboard files (Windows).
 #[cfg(target_os = "windows")]
 fn set_clipboard_files_impl(paths: &[String]) -> Result<(), String> {
-    use std::ffi::OsString;
-    use std::os::windows::ffi::OsStringExt;
-    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Foundation::{HANDLE, HWND};
     use windows::Win32::System::DataExchange::{
         OpenClipboard, CloseClipboard, EmptyClipboard, SetClipboardData,
-        RegisterClipboardFormatW,
     };
-    use windows::Win32::Storage::FileSystem::DROPFILES;
+    use windows::Win32::UI::Shell::DROPFILES;
 
     if paths.is_empty() {
         return Err("No file paths provided".to_string());
@@ -296,7 +293,7 @@ fn set_clipboard_files_impl(paths: &[String]) -> Result<(), String> {
 
     unsafe {
         // Open clipboard
-        if OpenClipboard(HWND(0)).is_err() {
+        if OpenClipboard(HWND(std::ptr::null_mut())).is_err() {
             return Err("Failed to open clipboard".to_string());
         }
 
@@ -366,11 +363,11 @@ fn set_clipboard_files_impl(paths: &[String]) -> Result<(), String> {
 
         let _ = windows::Win32::Foundation::GlobalUnlock(h_mem);
 
-        // Register CF_HDROP format (it's a standard format, ID = 15)
+        // CF_HDROP standard format, ID = 15
         let cf_hdrop = 15u32;
 
-        // Set clipboard data
-        if SetClipboardData(cf_hdrop, h_mem.0).is_err() {
+        // Set clipboard data (convert HGLOBAL to HANDLE for SetClipboardData)
+        if SetClipboardData(cf_hdrop, HANDLE(h_mem.0)).is_err() {
             let _ = CloseClipboard();
             return Err("Failed to set clipboard data".to_string());
         }
@@ -390,15 +387,15 @@ fn set_clipboard_files_impl(_paths: &[String]) -> Result<(), String> {
 /// Get file paths from Windows clipboard using CF_HDROP format.
 #[cfg(target_os = "windows")]
 fn get_clipboard_files_windows() -> Option<FileData> {
-    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Foundation::{HGLOBAL, HWND};
     use windows::Win32::System::DataExchange::{
         OpenClipboard, CloseClipboard, GetClipboardData,
     };
-    use windows::Win32::Storage::FileSystem::DROPFILES;
+    use windows::Win32::UI::Shell::DROPFILES;
 
     unsafe {
         // Open clipboard
-        if OpenClipboard(HWND(0)).is_err() {
+        if OpenClipboard(HWND(std::ptr::null_mut())).is_err() {
             return None;
         }
 
@@ -414,13 +411,14 @@ fn get_clipboard_files_windows() -> Option<FileData> {
             }
         };
 
-        if handle.0 == 0 {
+        if handle.0.is_null() {
             let _ = CloseClipboard();
             return None;
         }
 
-        // Lock the memory
-        let ptr = windows::Win32::Foundation::GlobalLock(handle);
+        // Lock the memory (convert HANDLE to HGLOBAL for GlobalLock)
+        let h_global = HGLOBAL(handle.0);
+        let ptr = windows::Win32::Foundation::GlobalLock(h_global);
         if ptr.is_err() {
             let _ = CloseClipboard();
             return None;
@@ -497,7 +495,7 @@ fn get_clipboard_files_windows() -> Option<FileData> {
             }
         }
 
-        let _ = windows::Win32::Foundation::GlobalUnlock(handle);
+        let _ = windows::Win32::Foundation::GlobalUnlock(h_global);
         let _ = CloseClipboard();
 
         if paths.is_empty() {
