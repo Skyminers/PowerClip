@@ -328,8 +328,10 @@ fn set_clipboard_files_impl(paths: &[String]) -> Result<(), String> {
             total_size,
         ).map_err(|e| format!("Failed to allocate memory: {}", e))?;
 
-        let ptr = windows::Win32::System::Memory::GlobalLock(h_mem)
-            .map_err(|e| format!("Failed to lock memory: {}", e))?;
+        let ptr = windows::Win32::System::Memory::GlobalLock(h_mem) as *mut u8;
+        if ptr.is_null() {
+            return Err("Failed to lock memory".to_string());
+        }
 
         // Build DROPFILES structure
         let drop_files = DROPFILES {
@@ -419,12 +421,6 @@ fn get_clipboard_files_windows() -> Option<FileData> {
         // Lock the memory (convert HANDLE to HGLOBAL for GlobalLock)
         let h_global = HGLOBAL(handle.0);
         let ptr = windows::Win32::System::Memory::GlobalLock(h_global);
-        if ptr.is_err() {
-            let _ = CloseClipboard();
-            return None;
-        }
-        let ptr = ptr.unwrap();
-
         if ptr.is_null() {
             let _ = CloseClipboard();
             return None;
