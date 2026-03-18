@@ -323,12 +323,12 @@ fn set_clipboard_files_impl(paths: &[String]) -> Result<(), String> {
         let total_size = header_size + strings_size;
 
         // Allocate memory for DROPFILES
-        let h_mem = windows::Win32::Foundation::GlobalAlloc(
-            windows::Win32::Foundation::GMEM_MOVEABLE,
+        let h_mem = windows::Win32::System::Memory::GlobalAlloc(
+            windows::Win32::System::Memory::GMEM_MOVEABLE,
             total_size,
         ).map_err(|e| format!("Failed to allocate memory: {}", e))?;
 
-        let ptr = windows::Win32::Foundation::GlobalLock(h_mem)
+        let ptr = windows::Win32::System::Memory::GlobalLock(h_mem)
             .map_err(|e| format!("Failed to lock memory: {}", e))?;
 
         // Build DROPFILES structure
@@ -361,7 +361,7 @@ fn set_clipboard_files_impl(paths: &[String]) -> Result<(), String> {
         // Add final null terminator
         std::ptr::write(ptr.add(offset) as *mut u16, 0);
 
-        let _ = windows::Win32::Foundation::GlobalUnlock(h_mem);
+        let _ = windows::Win32::System::Memory::GlobalUnlock(h_mem);
 
         // CF_HDROP standard format, ID = 15
         let cf_hdrop = 15u32;
@@ -418,7 +418,7 @@ fn get_clipboard_files_windows() -> Option<FileData> {
 
         // Lock the memory (convert HANDLE to HGLOBAL for GlobalLock)
         let h_global = HGLOBAL(handle.0);
-        let ptr = windows::Win32::Foundation::GlobalLock(h_global);
+        let ptr = windows::Win32::System::Memory::GlobalLock(h_global);
         if ptr.is_err() {
             let _ = CloseClipboard();
             return None;
@@ -495,7 +495,7 @@ fn get_clipboard_files_windows() -> Option<FileData> {
             }
         }
 
-        let _ = windows::Win32::Foundation::GlobalUnlock(h_global);
+        let _ = windows::Win32::System::Memory::GlobalUnlock(h_global);
         let _ = CloseClipboard();
 
         if paths.is_empty() {
