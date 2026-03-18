@@ -279,7 +279,7 @@ fn initial_settings_content() -> String {
   // Delay before focusing search input after window shows
   "focus_delay_ms": 50,
   // Debounce delay for semantic search to avoid excessive API calls
-  "semantic_search_debounce_ms": 300
+  "semantic_search_debounce_ms": 300,
 
   // Extensions (press Tab on selected item to trigger)
   // - name: Display name in extension selector
@@ -700,5 +700,113 @@ mod tests {
 
         init_semantic_tracker(false);
         assert!(!PREV_SEMANTIC_ENABLED.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_initial_settings_content_is_valid_json() {
+        let content = initial_settings_content();
+        let stripped = strip_comments(&content);
+
+        // Must be valid JSON after stripping comments
+        let parsed: serde_json::Value =
+            serde_json::from_str(&stripped).expect("initial_settings_content must produce valid JSON after stripping comments");
+
+        // Verify key fields are present
+        assert!(parsed.get("hotkey_modifiers").is_some(), "hotkey_modifiers missing");
+        assert!(parsed.get("hotkey_key").is_some(), "hotkey_key missing");
+        assert!(parsed.get("extensions").is_some(), "extensions missing");
+        assert!(parsed.get("semantic_search_debounce_ms").is_some(), "semantic_search_debounce_ms missing");
+    }
+
+    #[test]
+    fn test_initial_settings_content_deserializes_to_app_settings() {
+        let content = initial_settings_content();
+        let stripped = strip_comments(&content);
+
+        // Must deserialize into AppSettings successfully
+        let settings: AppSettings =
+            serde_json::from_str(&stripped).expect("initial_settings_content must deserialize into AppSettings");
+
+        // Verify settings match expected defaults
+        assert_eq!(settings.hotkey_key, "KeyV");
+        assert_eq!(settings.max_items, 100);
+        assert!(!settings.auto_cleanup_enabled);
+        assert!(!settings.auto_paste_enabled);
+        assert!((settings.window_opacity - 0.95).abs() < 0.001);
+        assert_eq!(settings.semantic_search_debounce_ms, 300);
+        assert!(!settings.extensions.is_empty(), "extensions should contain default extension");
+    }
+
+    #[test]
+    fn test_custom_hotkey_settings_not_overridden_by_defaults() {
+        // Simulate a user-configured settings JSON with custom hotkeys
+        let json = r#"{
+            "auto_cleanup_enabled": false,
+            "max_items": 100,
+            "hotkey_modifiers": "Alt+Shift",
+            "hotkey_key": "KeyX",
+            "window_opacity": 0.95,
+            "auto_paste_enabled": false,
+            "semantic_search_enabled": false,
+            "extensions": []
+        }"#;
+
+        let settings: AppSettings =
+            serde_json::from_str(json).expect("Failed to parse custom settings");
+
+        // Custom hotkey values must be preserved, not overridden by platform defaults
+        assert_eq!(settings.hotkey_modifiers, "Alt+Shift");
+        assert_eq!(settings.hotkey_key, "KeyX");
+    }
+
+    #[test]
+    fn test_custom_snippets_hotkey_settings_preserved() {
+        let json = r#"{
+            "auto_cleanup_enabled": false,
+            "max_items": 100,
+            "hotkey_modifiers": "Control+Shift",
+            "hotkey_key": "KeyV",
+            "window_opacity": 0.95,
+            "auto_paste_enabled": false,
+            "semantic_search_enabled": false,
+            "add_to_snippets_hotkey_enabled": false,
+            "add_to_snippets_hotkey_modifiers": "Alt",
+            "add_to_snippets_hotkey_key": "KeyQ",
+            "extensions": []
+        }"#;
+
+        let settings: AppSettings =
+            serde_json::from_str(json).expect("Failed to parse custom settings");
+
+        assert!(!settings.add_to_snippets_hotkey_enabled);
+        assert_eq!(settings.add_to_snippets_hotkey_modifiers, "Alt");
+        assert_eq!(settings.add_to_snippets_hotkey_key, "KeyQ");
+    }
+
+    #[test]
+    fn test_settings_with_comments_parsed_correctly() {
+        // Simulate a settings file with comments and custom hotkeys
+        let content = r#"// PowerClip Configuration
+{
+  // Custom hotkey
+  "auto_cleanup_enabled": false,
+  "max_items": 200,
+  "hotkey_modifiers": "Meta+Alt",
+  "hotkey_key": "KeyP",
+  "window_opacity": 0.8,
+  "auto_paste_enabled": true,
+  "semantic_search_enabled": false,
+  // Extensions
+  "extensions": []
+}"#;
+
+        let stripped = strip_comments(content);
+        let settings: AppSettings =
+            serde_json::from_str(&stripped).expect("Failed to parse settings with comments");
+
+        assert_eq!(settings.hotkey_modifiers, "Meta+Alt");
+        assert_eq!(settings.hotkey_key, "KeyP");
+        assert_eq!(settings.max_items, 200);
+        assert!(settings.auto_paste_enabled);
     }
 }
