@@ -448,8 +448,85 @@ function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [addDialogItem, editingSnippet, showAddSnippetDialog])
 
-  // List keyboard navigation
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  // Smart list filter tabs for keyboard navigation
+  const smartListTabs: SmartListFilter[] = useMemo(() =>
+    ['all', 'today', 'week', 'text', 'image', 'file'],
+  [])
+
+  // Input keyboard handler - only handles special keys, lets text input through
+  const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    // In search input, only handle navigation keys, let text input through
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        listRef.current?.focus()
+        // Also move selection down when navigating from input
+        if (viewModeRef.current === 'history' && filteredItems.length > 0) {
+          if (selectedId === null) {
+            setSelectedId(filteredItems[0].id)
+          } else {
+            const idx = filteredItems.findIndex(item => item.id === selectedId)
+            if (idx < filteredItems.length - 1) {
+              setSelectedId(filteredItems[idx + 1].id)
+            }
+          }
+        }
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        listRef.current?.focus()
+        // Also move selection up when navigating from input
+        if (viewModeRef.current === 'history' && filteredItems.length > 0) {
+          if (selectedId === null) {
+            setSelectedId(filteredItems[0].id)
+          } else {
+            const idx = filteredItems.findIndex(item => item.id === selectedId)
+            if (idx > 0) {
+              setSelectedId(filteredItems[idx - 1].id)
+            }
+          }
+        }
+        break
+      case 'ArrowLeft':
+        e.preventDefault()
+        if (viewModeRef.current === 'history') {
+          const currentIdx = smartListTabs.indexOf(smartListFilter)
+          const newIdx = currentIdx > 0 ? currentIdx - 1 : smartListTabs.length - 1
+          setSmartListFilter(smartListTabs[newIdx])
+        }
+        break
+      case 'ArrowRight':
+        e.preventDefault()
+        if (viewModeRef.current === 'history') {
+          const currentIdx = smartListTabs.indexOf(smartListFilter)
+          const newIdx = currentIdx < smartListTabs.length - 1 ? currentIdx + 1 : 0
+          setSmartListFilter(smartListTabs[newIdx])
+        }
+        break
+      case 'Enter':
+        e.preventDefault()
+        // Copy the first item if there's a search query
+        if (searchQuery && filteredItems.length > 0) {
+          copyItem(filteredItems[0])
+        } else if (!searchQuery && selectedId !== null) {
+          const item = filteredItems.find(i => i.id === selectedId)
+          if (item) copyItem(item)
+        }
+        break
+      case 'Escape':
+        e.preventDefault()
+        if (searchQuery) {
+          setSearchQuery('')
+        } else {
+          invoke('hide_window').catch(() => {})
+        }
+        break
+      // Let all other keys (including numbers) pass through for text input
+    }
+  }, [searchQuery, filteredItems, selectedId, copyItem, smartListTabs, smartListFilter])
+
+  // List keyboard navigation - handles navigation when list is focused
+  const handleListKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (showExtensionsRef.current) return
 
     // Handle snippets mode
@@ -465,6 +542,16 @@ function App() {
           e.preventDefault()
           if (idx < filteredSnippets.length - 1) setSelectedSnippetId(filteredSnippets[idx + 1].id)
           break
+        case 'ArrowLeft':
+        case 'ArrowRight':
+          e.preventDefault()
+          setViewMode('history')
+          setSearchQuery('')
+          // Auto-select first item in history
+          if (filteredItems.length > 0) {
+            setSelectedId(filteredItems[0].id)
+          }
+          break
         case 'Enter':
           e.preventDefault()
           if (selectedSnippetId !== null) {
@@ -476,11 +563,6 @@ function App() {
           e.preventDefault()
           inputRef.current?.focus()
           break
-        default:
-          if (e.key >= '1' && e.key <= '9') {
-            const snippet = filteredSnippets[parseInt(e.key) - 1]
-            if (snippet) copySnippet(snippet)
-          }
       }
       return
     }
@@ -496,6 +578,22 @@ function App() {
       case 'ArrowDown':
         e.preventDefault()
         if (idx < filteredItems.length - 1) setSelectedId(filteredItems[idx + 1].id)
+        break
+      case 'ArrowLeft':
+        e.preventDefault()
+        {
+          const currentIdx = smartListTabs.indexOf(smartListFilter)
+          const newIdx = currentIdx > 0 ? currentIdx - 1 : smartListTabs.length - 1
+          setSmartListFilter(smartListTabs[newIdx])
+        }
+        break
+      case 'ArrowRight':
+        e.preventDefault()
+        {
+          const currentIdx = smartListTabs.indexOf(smartListFilter)
+          const newIdx = currentIdx < smartListTabs.length - 1 ? currentIdx + 1 : 0
+          setSmartListFilter(smartListTabs[newIdx])
+        }
         break
       case 'Enter':
         e.preventDefault()
@@ -514,13 +612,8 @@ function App() {
         e.preventDefault()
         inputRef.current?.focus()
         break
-      default:
-        if (e.key >= '1' && e.key <= '9') {
-          const item = filteredItems[parseInt(e.key) - 1]
-          if (item) copyItem(item)
-        }
     }
-  }, [filteredItems, filteredSnippets, selectedId, selectedSnippetId, settings.extensions.length, copyItem, copySnippet])
+  }, [filteredItems, filteredSnippets, selectedId, selectedSnippetId, settings.extensions.length, copyItem, copySnippet, smartListTabs, smartListFilter])
 
   // Load history (returns data without setting state - caller decides when to set)
   const fetchHistory = useCallback(async (): Promise<ClipboardItem[] | null> => {
@@ -767,7 +860,7 @@ function App() {
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
+            onKeyDown={handleInputKeyDown}
             placeholder={viewMode === 'snippets' ? "Search quick commands..." : semanticMode ? "Semantic search..." : "Search..."}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground no-drag text-foreground"
           />
@@ -882,7 +975,7 @@ function App() {
         />
       )}
 
-      <ul key={listKey} ref={listRef} className="flex-1 overflow-y-auto scrollbar-thin bg-background" onKeyDown={handleKeyDown} tabIndex={0}>
+      <ul key={listKey} ref={listRef} className="flex-1 overflow-y-auto scrollbar-thin bg-background" onKeyDown={handleListKeyDown} tabIndex={0}>
         {viewMode === 'history' ? (
           <>
             {filteredItems.length > 0 ? (
@@ -893,7 +986,6 @@ function App() {
                     <ClipboardListItem
                       key={item.id}
                       item={item}
-                      index={virtualRow.index}
                       isSelected={selectedId === item.id}
                       imageCache={imageCache}
                       semanticScore={semanticScoreMap.get(item.id)}
@@ -925,12 +1017,12 @@ function App() {
                     <SnippetListItem
                       key={snippet.id}
                       snippet={snippet}
-                      index={virtualRow.index}
                       isSelected={selectedSnippetId === snippet.id}
                       onSelect={setSelectedSnippetId}
                       onCopy={copySnippet}
                       onDelete={deleteSnippet}
                       onEdit={handleEditSnippet}
+                      contentTruncateLength={settings.content_truncate_length}
                       style={{ position: 'absolute', transform: `translateY(${virtualRow.start}px)`, width: '100%' }}
                       data-index={virtualRow.index}
                     />
@@ -956,7 +1048,6 @@ function App() {
         totalCount={viewMode === 'snippets' ? snippets.length : items.length}
         filteredCount={viewMode === 'snippets' ? filteredSnippets.length : filteredItems.length}
         hasSearchQuery={searchQuery.length > 0}
-        isDarwin={isDarwin}
         semanticMode={semanticMode}
         viewMode={viewMode}
         hotkeyModifiers={settings.hotkey_modifiers}

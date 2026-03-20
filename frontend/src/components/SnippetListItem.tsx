@@ -1,22 +1,19 @@
 /**
  * Snippet list item component - displays a quick command item
- * Fixed height design: one line showing alias or content
+ * Fixed height design: shows alias (name) with content preview on the right
  */
 
 import { memo, useState, useCallback, forwardRef } from 'react'
 import { Star, Pencil, X } from 'lucide-react'
 import type { Snippet } from '../types'
 import { formatTime } from '../utils/helpers'
-import { MAX_SHORTCUT_INDEX } from '../constants'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 
 // Fixed height for snippet items
 export const SNIPPET_ITEM_HEIGHT = 48
 
 export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
   snippet: Snippet
-  index: number
   isSelected: boolean
   onSelect: (id: number) => void
   onCopy: (snippet: Snippet) => void
@@ -24,16 +21,17 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
   onEdit: (snippet: Snippet) => void
   style?: React.CSSProperties
   'data-index'?: number
+  contentTruncateLength?: number
 }>(function SnippetListItem({
   snippet,
-  index,
   isSelected,
   onSelect,
   onCopy,
   onDelete,
   onEdit,
   style,
-  'data-index': dataIndex
+  'data-index': dataIndex,
+  contentTruncateLength = 50
 }, ref) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showActions, setShowActions] = useState(false)
@@ -51,8 +49,13 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
     onEdit(snippet)
   }, [snippet, onEdit])
 
-  // Display alias if available, otherwise show the content
-  const displayName = snippet.alias || snippet.content
+  // Truncate content for display
+  const truncatedContent = snippet.content.length > contentTruncateLength
+    ? snippet.content.slice(0, contentTruncateLength) + '...'
+    : snippet.content
+
+  // Check if snippet has an alias
+  const hasAlias = snippet.alias && snippet.alias.trim().length > 0
 
   return (
     <li
@@ -83,9 +86,21 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
             className="w-4 h-4 flex-shrink-0"
             style={{ color: isSelected ? 'hsl(var(--foreground))' : 'hsl(var(--accent))' }}
           />
-          <p className="text-sm truncate font-medium flex-1 text-foreground">
-            {displayName}
-          </p>
+          {/* Show alias if available, otherwise show content */}
+          {hasAlias ? (
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="text-sm truncate font-medium text-foreground">
+                {snippet.alias}
+              </span>
+              <span className="text-xs truncate text-muted-foreground/60">
+                {truncatedContent}
+              </span>
+            </div>
+          ) : (
+            <p className="text-sm truncate flex-1 text-foreground">
+              {snippet.content}
+            </p>
+          )}
         </div>
 
         {/* Metadata area */}
@@ -110,11 +125,6 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
                 <X className="w-3.5 h-3.5" />
               </button>
             </>
-          )}
-          {index < MAX_SHORTCUT_INDEX && (
-            <Badge variant={isSelected ? "default" : "muted"}>
-              {index + 1}
-            </Badge>
           )}
           <span className="text-xs text-muted-foreground">
             {formatTime(snippet.updated_at)}

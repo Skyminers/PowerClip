@@ -11,7 +11,6 @@ export function StatusBar({
   totalCount,
   filteredCount,
   hasSearchQuery,
-  isDarwin,
   semanticMode = false,
   viewMode = 'history',
   hotkeyModifiers,
@@ -21,7 +20,6 @@ export function StatusBar({
   totalCount: number
   filteredCount: number
   hasSearchQuery: boolean
-  isDarwin: boolean
   semanticMode?: boolean
   viewMode?: 'history' | 'snippets'
   hotkeyModifiers: string
@@ -49,12 +47,24 @@ export function StatusBar({
       </div>
       <div className="flex items-center gap-4">
         <span className="flex items-center gap-1.5">
-          <Badge variant="keyboard">1-9</Badge>
-          Quick copy
+          <Badge variant="keyboard">↑↓</Badge>
+          Navigate
         </span>
+        {viewMode === 'history' && (
+          <span className="flex items-center gap-1.5">
+            <Badge variant="keyboard">←→</Badge>
+            Filter
+          </span>
+        )}
+        {viewMode === 'snippets' && (
+          <span className="flex items-center gap-1.5">
+            <Badge variant="keyboard">←→</Badge>
+            History
+          </span>
+        )}
         <span className="flex items-center gap-1.5">
-          <Badge variant="keyboard">{isDarwin ? '⌘P' : 'Ctrl+P'}</Badge>
-          Toggle
+          <Badge variant="keyboard">/</Badge>
+          Search
         </span>
         <span className="flex items-center gap-1.5">
           <Badge variant="keyboard">Esc</Badge>

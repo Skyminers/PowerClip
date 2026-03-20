@@ -7,7 +7,6 @@ import { memo, useState, useCallback, forwardRef } from 'react'
 import { FileText, Image, File, Star, Plus, X } from 'lucide-react'
 import type { ClipboardItem, ImageCache } from '../types'
 import { formatContent, formatTime } from '../utils/helpers'
-import { MAX_SHORTCUT_INDEX } from '../constants'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
@@ -25,7 +24,6 @@ function formatScore(score: number): string {
 
 export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   item: ClipboardItem
-  index: number
   isSelected: boolean
   imageCache: ImageCache
   semanticScore?: number
@@ -41,7 +39,6 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   'data-index'?: number
 }>(function ClipboardListItem({
   item,
-  index,
   isSelected,
   imageCache,
   semanticScore,
@@ -180,13 +177,6 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
               title={`Semantic similarity: ${formatScore(semanticScore)}`}
             >
               {formatScore(semanticScore)}
-            </Badge>
-          )}
-          {index < MAX_SHORTCUT_INDEX && (
-            <Badge
-              variant={isSelected ? "default" : "muted"}
-            >
-              {index + 1}
             </Badge>
           )}
           <span className="text-xs text-muted-foreground">
