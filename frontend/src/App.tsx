@@ -6,8 +6,17 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { flushSync } from 'react-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { invoke } from '@tauri-apps/api/core'
-import type { ClipboardItem, Settings, ImageCache, SemanticStatus, Snippet } from './types'
-import { theme } from './theme'
+import {
+  Search,
+  X,
+  Loader2,
+  AlertCircle,
+  Star,
+  Plus,
+  Settings,
+  List,
+} from 'lucide-react'
+import type { ClipboardItem, Settings as SettingsType, ImageCache, SemanticStatus, Snippet } from './types'
 import { isDarwin } from './utils/platform'
 import { useSemanticSearch } from './hooks/useSemanticSearch'
 import { useDebouncedValue } from './hooks/useDebouncedValue'
@@ -23,13 +32,16 @@ import {
   SnippetListItem,
   AddSnippetDialog,
   SnippetDialog,
+  QuickMenu,
+  SmartLists,
   TEXT_ITEM_HEIGHT,
   IMAGE_ITEM_HEIGHT,
   FILE_ITEM_HEIGHT,
   SNIPPET_ITEM_HEIGHT
 } from './components'
-
-const colors = theme.colors
+import type { SmartListFilter } from './components'
+import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 
 function App() {
 
@@ -49,12 +61,18 @@ function App() {
   const [selectedSnippetId, setSelectedSnippetId] = useState<number | null>(null)
   const [addDialogItem, setAddDialogItem] = useState<ClipboardItem | null>(null)
 
+  // Paste queue state
+  const [pasteQueueCount, setPasteQueueCount] = useState(0)
+
+  // Smart list filter state
+  const [smartListFilter, setSmartListFilter] = useState<SmartListFilter>('all')
+
   // List key - changes when window is shown to force virtualizer reset
   const [listKey, setListKey] = useState(0)
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null)
   const [showAddSnippetDialog, setShowAddSnippetDialog] = useState(false)
 
-  const [settings, setSettings] = useState<Settings>({
+  const [settings, setSettings] = useState<SettingsType>({
     auto_cleanup_enabled: false,
     max_items: 100,
     hotkey_modifiers: isDarwin ? 'Meta+Shift' : 'Control+Shift',
@@ -63,6 +81,10 @@ function App() {
     auto_paste_enabled: false,
     extensions: [],
     semantic_search_enabled: false,
+    embedding_api_url: '',
+    embedding_api_key: '',
+    embedding_api_model: '',
+    embedding_api_dim: 256,
     add_to_snippets_hotkey_enabled: true,
     add_to_snippets_hotkey_modifiers: isDarwin ? 'Meta+Shift' : 'Control+Shift',
     add_to_snippets_hotkey_key: 'KeyS',
@@ -100,13 +122,75 @@ function App() {
   // Debounced search query for filtering (150ms delay)
   const debouncedSearchLower = useDebouncedValue(searchLower, 150)
 
-  // Display items based on search mode
-  const filteredItems = useMemo(() => {
+  // Get today's date string for filtering
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], [])
+
+  // Get date 7 days ago for week filtering
+  const weekAgoStr = useMemo(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7)
+    return d.toISOString().split('T')[0]
+  }, [])
+
+  // Filter items by smart list type
+  const smartListFilteredItems = useMemo(() => {
     if (semanticMode && semanticResults.length > 0 && searchQuery.length > 0) {
-      return semanticResults.map(r => r.item)
+      // In semantic mode, use semantic results
+      let results = semanticResults.map(r => r.item)
+      // Apply smart list filter to semantic results too
+      if (smartListFilter === 'text') {
+        results = results.filter(item => item.item_type === 'text')
+      } else if (smartListFilter === 'image') {
+        results = results.filter(item => item.item_type === 'image')
+      } else if (smartListFilter === 'file') {
+        results = results.filter(item => item.item_type === 'file')
+      } else if (smartListFilter === 'today') {
+        results = results.filter(item => item.created_at.startsWith(todayStr))
+      } else if (smartListFilter === 'week') {
+        results = results.filter(item => item.created_at >= weekAgoStr)
+      }
+      return results
     }
-    return items.filter(item => item.content.toLowerCase().includes(searchLower))
-  }, [items, searchLower, semanticMode, semanticResults, searchQuery])
+
+    // Apply smart list filter
+    let filtered = items
+    if (smartListFilter === 'text') {
+      filtered = items.filter(item => item.item_type === 'text')
+    } else if (smartListFilter === 'image') {
+      filtered = items.filter(item => item.item_type === 'image')
+    } else if (smartListFilter === 'file') {
+      filtered = items.filter(item => item.item_type === 'file')
+    } else if (smartListFilter === 'today') {
+      filtered = items.filter(item => item.created_at.startsWith(todayStr))
+    } else if (smartListFilter === 'week') {
+      filtered = items.filter(item => item.created_at >= weekAgoStr)
+    }
+
+    // Then apply search filter
+    if (searchLower) {
+      filtered = filtered.filter(item => item.content.toLowerCase().includes(searchLower))
+    }
+
+    return filtered
+  }, [items, smartListFilter, searchLower, semanticMode, semanticResults, searchQuery, todayStr, weekAgoStr])
+
+  // Alias for backward compatibility
+  const filteredItems = smartListFilteredItems
+
+  // Calculate counts for smart list badges
+  const smartListCounts = useMemo(() => {
+    const todayItems = items.filter(item => item.created_at.startsWith(todayStr))
+    const weekItems = items.filter(item => item.created_at >= weekAgoStr)
+
+    return {
+      all: items.length,
+      today: todayItems.length,
+      week: weekItems.length,
+      text: items.filter(item => item.item_type === 'text').length,
+      image: items.filter(item => item.item_type === 'image').length,
+      file: items.filter(item => item.item_type === 'file').length,
+    }
+  }, [items, todayStr, weekAgoStr])
 
   // Map item id to semantic score for quick lookup
   const semanticScoreMap = useMemo(() => {
@@ -259,9 +343,31 @@ function App() {
     setShowAddSnippetDialog(false)
   }, [loadSnippets])
 
+  // Paste queue functions
+  const addToPasteQueue = useCallback(async (item: ClipboardItem) => {
+    try {
+      const count = await invoke<number>('add_to_paste_queue', { item })
+      setPasteQueueCount(count)
+    } catch (error) {
+      console.error('[PowerClip] Failed to add to paste queue:', error)
+    }
+  }, [])
+
+  const pasteNextInQueue = useCallback(async () => {
+    try {
+      const item = await invoke<ClipboardItem | null>('paste_next_in_queue')
+      if (item) {
+        const count = await invoke<number>('get_paste_queue_count')
+        setPasteQueueCount(count)
+      }
+    } catch (error) {
+      console.error('[PowerClip] Failed to paste next in queue:', error)
+    }
+  }, [])
+
   // Load settings
   const loadSettings = useCallback(() => {
-    invoke<Settings>('get_settings')
+    invoke<SettingsType>('get_settings')
       .then(s => {
         setSettings(s)
         setSettingsError(null) // Clear any previous error on success
@@ -308,6 +414,13 @@ function App() {
         setSearchQuery('')
         setSelectedId(null)
         setSelectedSnippetId(null)
+        return
+      }
+
+      // Cmd/Ctrl+' to paste next item in queue
+      if (e.key === '\'' && (isDarwin ? e.metaKey : e.ctrlKey)) {
+        e.preventDefault()
+        pasteNextInQueue()
         return
       }
 
@@ -500,6 +613,16 @@ function App() {
     return () => window.removeEventListener('powerclip:settings-error', handler)
   }, [])
 
+  // Listen for paste queue changes
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const count = (e as CustomEvent<number>).detail
+      setPasteQueueCount(count)
+    }
+    window.addEventListener('powerclip:paste-queue-changed', handler)
+    return () => window.removeEventListener('powerclip:paste-queue-changed', handler)
+  }, [])
+
   // Listen for add-to-snippets hotkey
   useEffect(() => {
     const handleAddToSnippetsHotkey = async () => {
@@ -535,6 +658,7 @@ function App() {
       setViewMode('history')
       setSearchQuery('')
       setSelectedSnippetId(null)
+      setSmartListFilter('all')
       loadSnippets()
 
       // Force virtualizer to reset by changing the list key
@@ -636,10 +760,8 @@ function App() {
   return (
     <div className="window-wrapper w-full h-full flex flex-col text-white relative" style={{ opacity: settings.window_opacity }}>
       <WindowDragHandler>
-        <div className="flex items-center gap-2 px-4 py-3" style={{ backgroundColor: colors.bgSecondary }}>
-          <svg className="w-4 h-4 flex-shrink-0" style={{ color: colors.textMuted }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+        <div className="flex items-center gap-2 px-4 py-3 bg-secondary">
+          <Search className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
             type="text"
@@ -647,25 +769,23 @@ function App() {
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={viewMode === 'snippets' ? "Search quick commands..." : semanticMode ? "Semantic search..." : "Search..."}
-            className="flex-1 bg-transparent text-sm outline-none placeholder-gray-500 no-drag"
-            style={{ color: colors.text }}
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground no-drag text-foreground"
           />
           {semanticLoading && (
-            <svg className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: colors.accent }} fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
+            <Loader2 className="w-4 h-4 animate-spin flex-shrink-0 text-accent" />
           )}
           {semanticError && semanticMode && (
-            <span className="text-xs px-2 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: 'rgba(239,68,68,0.2)', color: '#fca5a5' }} title={semanticError}>
+            <Badge variant="destructive" className="flex-shrink-0" title={semanticError}>
+              <AlertCircle className="w-3 h-3 mr-1" />
               Search Error
-            </span>
+            </Badge>
           )}
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="no-drag p-1 rounded hover:bg-white/10 button-press" style={{ color: colors.textMuted }}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="no-drag p-1 rounded hover:bg-white/10 button-press text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
             </button>
           )}
           <SemanticToggle
@@ -675,37 +795,43 @@ function App() {
             onToggle={handleSemanticToggle}
             onRefreshStatus={loadSemanticStatus}
           />
+          {/* Paste queue indicator */}
+          {pasteQueueCount > 0 && (
+            <button
+              onClick={() => pasteNextInQueue()}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono no-drag button-press bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
+              title={`Paste Queue: ${pasteQueueCount} items (${isDarwin ? 'Cmd' : 'Ctrl'}+' to paste next)`}
+            >
+              <List className="w-3 h-3" />
+              <span>{pasteQueueCount}</span>
+            </button>
+          )}
           <button
             onClick={() => { setViewMode(prev => prev === 'history' ? 'snippets' : 'history'); setSearchQuery(''); setSelectedId(null); setSelectedSnippetId(null); }}
-            className={`p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag mode-switch-animate ${viewMode === 'snippets' ? 'bg-white/10' : ''}`}
+            className={cn(
+              "p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag mode-switch-animate",
+              viewMode === 'snippets' && "bg-white/10 text-accent",
+              viewMode !== 'snippets' && "text-muted-foreground"
+            )}
             title={`Toggle quick commands (${isDarwin ? 'Cmd' : 'Ctrl'}+P)`}
-            style={{ color: viewMode === 'snippets' ? colors.accent : colors.textMuted }}
           >
-            <svg className="w-4 h-4" fill={viewMode === 'snippets' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-            </svg>
+            <Star className="w-4 h-4" fill={viewMode === 'snippets' ? 'currentColor' : 'none'} />
           </button>
           {viewMode === 'snippets' && (
             <button
               onClick={() => setShowAddSnippetDialog(true)}
-              className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag button-press"
+              className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag button-press text-muted-foreground hover:text-foreground"
               title="Add new quick command"
-              style={{ color: colors.textMuted }}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+              <Plus className="w-4 h-4" />
             </button>
           )}
           <button
             onClick={() => invoke('open_settings_file').catch(() => {})}
-            className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag button-press"
+            className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag button-press text-muted-foreground hover:text-foreground"
             title="Edit config file (Cmd+,)"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+            <Settings className="w-4 h-4" />
           </button>
         </div>
       </WindowDragHandler>
@@ -716,6 +842,15 @@ function App() {
           selectedItem={filteredItems.find(i => i.id === selectedId) || null}
           onClose={() => setShowExtensions(false)}
           onCloseWindow={() => { setShowExtensions(false); setSearchQuery(''); invoke('hide_window').catch(() => {}) }}
+        />
+      )}
+
+      {/* Smart Lists Filter - only show in history mode */}
+      {viewMode === 'history' && (
+        <SmartLists
+          activeFilter={smartListFilter}
+          onFilterChange={setSmartListFilter}
+          counts={smartListCounts}
         />
       )}
 
@@ -747,7 +882,7 @@ function App() {
         />
       )}
 
-      <ul key={listKey} ref={listRef} className="flex-1 overflow-y-auto scrollbar-thin" style={{ backgroundColor: colors.bg }} onKeyDown={handleKeyDown} tabIndex={0}>
+      <ul key={listKey} ref={listRef} className="flex-1 overflow-y-auto scrollbar-thin bg-background" onKeyDown={handleKeyDown} tabIndex={0}>
         {viewMode === 'history' ? (
           <>
             {filteredItems.length > 0 ? (
@@ -769,6 +904,7 @@ function App() {
                       onCopy={copyItem}
                       onDelete={deleteItem}
                       onAddToSnippets={handleAddToSnippets}
+                      onAddToQueue={addToPasteQueue}
                       style={{ position: 'absolute', transform: `translateY(${virtualRow.start}px)`, width: '100%' }}
                       data-index={virtualRow.index}
                     />
@@ -803,13 +939,11 @@ function App() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-16 px-4">
-                <svg className="w-12 h-12 mb-4" style={{ color: colors.textMuted }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                </svg>
-                <p className="text-sm" style={{ color: colors.textMuted }}>
+                <Star className="w-12 h-12 mb-4 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
                   {searchQuery.length > 0 ? 'No matching quick commands' : 'No quick commands yet'}
                 </p>
-                <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
+                <p className="text-xs mt-1 text-muted-foreground">
                   {searchQuery.length > 0 ? 'Try a different search term' : 'Click the star icon on a history item to add'}
                 </p>
               </div>
@@ -830,6 +964,12 @@ function App() {
         settingsError={settingsError}
       />
       <ResizeHandle />
+
+      {/* Quick Menu */}
+      <QuickMenu
+        items={items}
+        imageCache={imageCache}
+      />
     </div>
   )
 }

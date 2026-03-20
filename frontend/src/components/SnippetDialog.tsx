@@ -4,9 +4,16 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import type { Snippet } from '../types'
-import { theme } from '../theme'
-
-const colors = theme.colors
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
 
 interface SnippetDialogProps {
   mode: 'add' | 'edit'
@@ -39,111 +46,64 @@ export function SnippetDialog({
     onConfirm(trimmedContent, alias.trim() || null)
   }, [content, alias, onConfirm])
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onCancel()
-    }
-    // Ctrl/Cmd + Enter to submit
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault()
-      const trimmedContent = content.trim()
-      if (trimmedContent) {
-        onConfirm(trimmedContent, alias.trim() || null)
-      }
-    }
-  }, [content, alias, onConfirm, onCancel])
-
   const title = mode === 'add' ? 'Add Quick Command' : 'Edit Quick Command'
   const confirmText = mode === 'add' ? 'Add' : 'Save'
 
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center z-50"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
-      onClick={onCancel}
-      onKeyDown={handleKeyDown}
-      tabIndex={0}
-    >
-      <div
-        className="rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden dialog-animate"
-        style={{ backgroundColor: colors.bgSecondary, border: `1px solid ${colors.border}` }}
-        onClick={e => e.stopPropagation()}
-      >
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="max-w-md">
         <form onSubmit={handleSubmit}>
-          {/* Header */}
-          <div className="px-4 py-3 border-b" style={{ borderColor: colors.border }}>
-            <h3 className="text-sm font-medium" style={{ color: colors.text }}>
-              {title}
-            </h3>
-          </div>
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+          </DialogHeader>
 
           {/* Content input */}
-          <div className="px-4 py-3">
-            <label className="block text-xs mb-2" style={{ color: colors.textMuted }}>
+          <div className="py-3">
+            <label className="block text-xs mb-2 text-muted-foreground">
               Content
             </label>
-            <textarea
+            <Textarea
               ref={contentRef}
               value={content}
               onChange={e => setContent(e.target.value)}
               placeholder="Enter command or text..."
               rows={4}
-              className="w-full px-3 py-2 rounded text-sm outline-none resize-none font-mono"
-              style={{
-                backgroundColor: colors.bg,
-                color: colors.text,
-                border: `1px solid ${colors.border}`
-              }}
+              className="font-mono"
             />
           </div>
 
           {/* Alias input */}
-          <div className="px-4 py-3">
-            <label className="block text-xs mb-2" style={{ color: colors.textMuted }}>
+          <div className="pb-3">
+            <label className="block text-xs mb-2 text-muted-foreground">
               Alias (optional)
             </label>
-            <input
-              type="text"
+            <Input
               value={alias}
               onChange={e => setAlias(e.target.value)}
               placeholder="e.g., Docker bash"
-              className="w-full px-3 py-2 rounded text-sm outline-none"
-              style={{
-                backgroundColor: colors.bg,
-                color: colors.text,
-                border: `1px solid ${colors.border}`
-              }}
             />
-            <p className="text-xs mt-1.5" style={{ color: colors.textMuted }}>
+            <p className="text-xs mt-1.5 text-muted-foreground">
               A short name to help you identify this command
             </p>
           </div>
 
-          {/* Buttons */}
-          <div className="px-4 py-3 flex justify-end gap-2 border-t" style={{ borderColor: colors.border }}>
-            <button
+          <DialogFooter className="gap-2">
+            <Button
               type="button"
+              variant="ghost"
               onClick={onCancel}
-              className="px-3 py-1.5 rounded text-sm transition-colors hover:bg-white/10"
-              style={{ color: colors.textMuted }}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={!content.trim()}
-              className="px-3 py-1.5 rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: colors.accent,
-                color: '#fff'
-              }}
             >
               {confirmText}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

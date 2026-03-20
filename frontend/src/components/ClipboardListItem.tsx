@@ -4,13 +4,12 @@
  */
 
 import { memo, useState, useCallback, forwardRef } from 'react'
+import { FileText, Image, File, Star, Plus, X } from 'lucide-react'
 import type { ClipboardItem, ImageCache } from '../types'
-import { theme } from '../theme'
 import { formatContent, formatTime } from '../utils/helpers'
 import { MAX_SHORTCUT_INDEX } from '../constants'
-import { IconDocument, IconImage, IconFile } from './icons'
-
-const colors = theme.colors
+import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 
 // Fixed heights for item types
 export const TEXT_ITEM_HEIGHT = 48
@@ -37,6 +36,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   onCopy: (item: ClipboardItem) => void
   onDelete: (id: number) => void
   onAddToSnippets?: (item: ClipboardItem) => void
+  onAddToQueue?: (item: ClipboardItem) => void
   style?: React.CSSProperties
   'data-index'?: number
 }>(function ClipboardListItem({
@@ -52,6 +52,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   onCopy,
   onDelete,
   onAddToSnippets,
+  onAddToQueue,
   style,
   'data-index': dataIndex
 }, ref) {
@@ -73,20 +74,20 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   const itemHeight = isImage ? IMAGE_ITEM_HEIGHT : TEXT_ITEM_HEIGHT
 
   // Get icon based on item type
-  const getItemIcon = () => {
-    if (isImage) return <IconImage />
-    if (isFile) return <IconFile />
-    return <IconDocument />
-  }
+  const ItemIcon = isImage ? Image : isFile ? File : FileText
 
   return (
     <li
       ref={ref}
       data-id={item.id}
       data-index={dataIndex}
-      className={`relative px-4 cursor-pointer ${isSelected ? 'selected-indicator' : ''} ${isDeleting ? 'deleting' : ''}`}
+      className={cn(
+        "relative px-4 cursor-pointer",
+        isSelected && "selected-indicator selected-animate",
+        isDeleting && "deleting"
+      )}
       style={{
-        backgroundColor: isSelected ? colors.selected : 'transparent',
+        backgroundColor: isSelected ? 'hsl(var(--selected))' : 'transparent',
         height: itemHeight,
         display: 'flex',
         alignItems: 'center',
@@ -100,16 +101,14 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
       <div className="flex items-center justify-between gap-3 w-full">
         {/* Content area */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <span
-            className="text-sm flex-shrink-0"
-            style={{ color: isSelected ? colors.text : colors.textMuted }}
-          >
-            {getItemIcon()}
-          </span>
+          <ItemIcon
+            className="w-4 h-4 flex-shrink-0"
+            style={{ color: isSelected ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
+          />
           <div className="flex-1 min-w-0 flex items-center">
             {isImage ? (
               <div className="flex items-center gap-3">
-                <span className="text-xs" style={{ color: colors.textMuted }}>Image</span>
+                <span className="text-xs text-muted-foreground">Image</span>
                 {imageCache[item.content] ? (
                   <img
                     src={imageCache[item.content]}
@@ -121,18 +120,18 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
                     }}
                   />
                 ) : (
-                  <span className="text-xs" style={{ color: colors.textMuted }}>Loading...</span>
+                  <span className="text-xs text-muted-foreground">Loading...</span>
                 )}
               </div>
             ) : isFile ? (
               <div className="flex items-center gap-2">
-                <span className="text-xs" style={{ color: colors.textMuted }}>File</span>
-                <p className="text-sm truncate" style={{ color: colors.text }}>
+                <span className="text-xs text-muted-foreground">File</span>
+                <p className="text-sm truncate text-foreground">
                   {formatContent(item.content, item.item_type, contentTruncateLength)}
                 </p>
               </div>
             ) : (
-              <p className="text-sm truncate" style={{ color: colors.text }}>
+              <p className="text-sm truncate text-foreground">
                 {formatContent(item.content, item.item_type, contentTruncateLength)}
               </p>
             )}
@@ -151,9 +150,17 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
                   style={{ color: '#eab308' }}
                   title="Add to Quick Commands"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                  </svg>
+                  <Star className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {onAddToQueue && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onAddToQueue(item); }}
+                  className="p-1 rounded hover:bg-blue-500/20 transition-colors button-press"
+                  style={{ color: '#3b82f6' }}
+                  title="Add to Paste Queue"
+                >
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
               )}
               <button
@@ -162,37 +169,27 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
                 style={{ color: '#ef4444' }}
                 title="Delete"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="w-3.5 h-3.5" />
               </button>
             </>
           )}
           {/* AI search similarity score */}
           {semanticScore !== undefined && (
-            <span
-              className="text-xs px-1.5 py-0.5 rounded font-mono"
-              style={{
-                backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.15)',
-                color: isSelected ? '#fff' : colors.accent
-              }}
+            <Badge
+              variant="score"
               title={`Semantic similarity: ${formatScore(semanticScore)}`}
             >
               {formatScore(semanticScore)}
-            </span>
+            </Badge>
           )}
           {index < MAX_SHORTCUT_INDEX && (
-            <span
-              className="text-xs px-1.5 py-0.5 rounded font-mono"
-              style={{
-                backgroundColor: isSelected ? 'rgba(255,255,255,0.15)' : colors.bgSecondary,
-                color: isSelected ? colors.text : colors.textMuted
-              }}
+            <Badge
+              variant={isSelected ? "default" : "muted"}
             >
               {index + 1}
-            </span>
+            </Badge>
           )}
-          <span className="text-xs" style={{ color: colors.textMuted }}>
+          <span className="text-xs text-muted-foreground">
             {formatTime(item.created_at)}
           </span>
         </div>

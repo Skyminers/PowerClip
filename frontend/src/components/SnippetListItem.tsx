@@ -4,12 +4,12 @@
  */
 
 import { memo, useState, useCallback, forwardRef } from 'react'
+import { Star, Pencil, X } from 'lucide-react'
 import type { Snippet } from '../types'
-import { theme } from '../theme'
 import { formatTime } from '../utils/helpers'
 import { MAX_SHORTCUT_INDEX } from '../constants'
-
-const colors = theme.colors
+import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 
 // Fixed height for snippet items
 export const SNIPPET_ITEM_HEIGHT = 48
@@ -59,9 +59,13 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
       ref={ref}
       data-id={snippet.id}
       data-index={dataIndex}
-      className={`relative px-4 cursor-pointer ${isSelected ? 'selected-indicator' : ''} ${isDeleting ? 'deleting' : ''}`}
+      className={cn(
+        "relative px-4 cursor-pointer",
+        isSelected && "selected-indicator selected-animate",
+        isDeleting && "deleting"
+      )}
       style={{
-        backgroundColor: isSelected ? colors.selected : 'transparent',
+        backgroundColor: isSelected ? 'hsl(var(--selected))' : 'transparent',
         height: SNIPPET_ITEM_HEIGHT,
         display: 'flex',
         alignItems: 'center',
@@ -75,15 +79,11 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
       <div className="flex items-center justify-between gap-3 w-full">
         {/* Content area */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <span
-            className="text-sm flex-shrink-0"
-            style={{ color: isSelected ? colors.text : colors.accent }}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-            </svg>
-          </span>
-          <p className="text-sm truncate font-medium flex-1" style={{ color: colors.text }}>
+          <Star
+            className="w-4 h-4 flex-shrink-0"
+            style={{ color: isSelected ? 'hsl(var(--foreground))' : 'hsl(var(--accent))' }}
+          />
+          <p className="text-sm truncate font-medium flex-1 text-foreground">
             {displayName}
           </p>
         </div>
@@ -96,12 +96,10 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
               <button
                 onClick={handleEditClick}
                 className="p-1 rounded hover:bg-white/10 transition-colors button-press"
-                style={{ color: colors.textMuted }}
+                style={{ color: 'hsl(var(--muted-foreground))' }}
                 title="Edit"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
+                <Pencil className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={handleDeleteClick}
@@ -109,24 +107,16 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
                 style={{ color: '#ef4444' }}
                 title="Delete"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="w-3.5 h-3.5" />
               </button>
             </>
           )}
           {index < MAX_SHORTCUT_INDEX && (
-            <span
-              className="text-xs px-1.5 py-0.5 rounded font-mono"
-              style={{
-                backgroundColor: isSelected ? 'rgba(255,255,255,0.15)' : colors.bgSecondary,
-                color: isSelected ? colors.text : colors.textMuted
-              }}
-            >
+            <Badge variant={isSelected ? "default" : "muted"}>
               {index + 1}
-            </span>
+            </Badge>
           )}
-          <span className="text-xs" style={{ color: colors.textMuted }}>
+          <span className="text-xs text-muted-foreground">
             {formatTime(snippet.updated_at)}
           </span>
         </div>

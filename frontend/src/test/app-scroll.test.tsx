@@ -4,8 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
-import React from 'react'
+import { render, act } from '@testing-library/react'
 
 // Mock Tauri APIs
 const mockInvoke = vi.fn()
@@ -52,6 +51,10 @@ const defaultSettings = {
   auto_paste_enabled: false,
   extensions: [],
   semantic_search_enabled: false,
+  embedding_api_url: '',
+  embedding_api_key: '',
+  embedding_api_model: '',
+  embedding_api_dim: 256,
   add_to_snippets_hotkey_enabled: true,
   add_to_snippets_hotkey_modifiers: 'Meta+Shift',
   add_to_snippets_hotkey_key: 'KeyS',
@@ -98,8 +101,6 @@ describe('App Scroll Integration', () => {
   it('should verify isInitialSelectionRef is set before flushSync', async () => {
     // This test verifies the timing of ref setting
     // The ref must be set BEFORE flushSync so the scroll effect can detect it
-
-    let refValueAtEffectTime: boolean | null = null
 
     const { default: App } = await import('../App')
 

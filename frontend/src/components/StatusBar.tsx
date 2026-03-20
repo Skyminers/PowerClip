@@ -3,10 +3,9 @@
  * Displays clipboard statistics and keyboard shortcuts
  */
 
-import { theme } from '../theme'
+import { AlertTriangle } from 'lucide-react'
 import { formatHotkey } from '../utils/platform'
-
-const colors = theme.colors
+import { Badge } from '@/components/ui/badge'
 
 export function StatusBar({
   totalCount,
@@ -32,33 +31,34 @@ export function StatusBar({
   const hotkeyDisplay = formatHotkey(hotkeyModifiers, hotkeyKey)
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 text-xs" style={{ backgroundColor: colors.bgSecondary }}>
-      <div className="flex items-center gap-4" style={{ color: colors.textMuted }}>
+    <div className="flex items-center justify-between px-4 py-2 text-xs bg-secondary text-muted-foreground">
+      <div className="flex items-center gap-4">
         {settingsError ? (
-          <span className="flex items-center gap-1.5" style={{ color: '#fca5a5' }} title={settingsError}>
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+          <span className="flex items-center gap-1.5 text-red-300" title={settingsError}>
+            <AlertTriangle className="w-3 h-3" />
             Config error - using defaults
           </span>
         ) : (
           <>
             <span>{filteredCount} / {totalCount} {viewMode === 'snippets' ? 'commands' : 'items'}</span>
-            {viewMode === 'snippets' && <span style={{ color: colors.accent }}>Quick Commands</span>}
-            {viewMode === 'history' && semanticMode && <span style={{ color: colors.accent }}>AI Search</span>}
-            {viewMode === 'history' && !semanticMode && hasSearchQuery && <span style={{ color: colors.accent }}>Filtered</span>}
+            {viewMode === 'snippets' && <span className="text-accent">Quick Commands</span>}
+            {viewMode === 'history' && semanticMode && <span className="text-accent">AI Search</span>}
+            {viewMode === 'history' && !semanticMode && hasSearchQuery && <span className="text-accent">Filtered</span>}
           </>
         )}
       </div>
-      <div className="flex items-center gap-4" style={{ color: colors.textMuted }}>
+      <div className="flex items-center gap-4">
         <span className="flex items-center gap-1.5">
-          <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>1-9</kbd>Quick copy
+          <Badge variant="keyboard">1-9</Badge>
+          Quick copy
         </span>
         <span className="flex items-center gap-1.5">
-          <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>{isDarwin ? '⌘P' : 'Ctrl+P'}</kbd>Toggle
+          <Badge variant="keyboard">{isDarwin ? '⌘P' : 'Ctrl+P'}</Badge>
+          Toggle
         </span>
         <span className="flex items-center gap-1.5">
-          <kbd className="px-1.5 py-0.5 rounded text-[10px]" style={{ backgroundColor: colors.bgHover }}>Esc</kbd>Close
+          <Badge variant="keyboard">Esc</Badge>
+          Close
         </span>
         <span>{hotkeyDisplay}</span>
       </div>

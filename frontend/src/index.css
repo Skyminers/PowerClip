@@ -2,43 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  border: none !important;
-  outline: none !important;
+@layer base {
+  :root {
+    /* Catppuccin Mocha theme converted to HSL */
+    --background: 267 27% 15%; /* #1e1e2e */
+    --foreground: 226 64% 88%; /* #cdd6f4 */
+
+    --card: 267 27% 15%;
+    --card-foreground: 226 64% 88%;
+
+    --popover: 258 24% 20%; /* #29293f */
+    --popover-foreground: 226 64% 88%;
+
+    --primary: 217 91% 76%; /* #89b4fa */
+    --primary-foreground: 267 27% 15%;
+
+    --secondary: 258 24% 20%; /* #29293f */
+    --secondary-foreground: 226 64% 88%;
+
+    --muted: 255 13% 27%; /* #3a3a4f */
+    --muted-foreground: 243 10% 46%; /* #6c7086 */
+
+    --accent: 217 91% 76%; /* #89b4fa */
+    --accent-foreground: 267 27% 15%;
+
+    --destructive: 0 84% 60%; /* #ef4444 */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 260 12% 31%; /* #45475a */
+    --input: 260 12% 31%;
+    --ring: 217 91% 76%;
+
+    --radius: 0.5rem;
+
+    /* Custom Catppuccin colors */
+    --selected: 265 9% 38%; /* #585b70 */
+  }
 }
 
-html, body {
-  width: 100%;
-  height: 100%;
-  background: transparent !important;
-  overflow: hidden;
-  /* Apply rounded corners to entire viewport */
-  border-radius: 16px;
-}
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    border-color: hsl(var(--border));
+  }
 
-#root {
-  width: 100%;
-  height: 100%;
-  background: transparent !important;
-  padding: 0;
-  margin: 0;
-}
+  *:focus {
+    outline: none;
+  }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background: transparent !important;
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: transparent !important;
+    overflow: hidden;
+    border-radius: 16px;
+  }
+
+  #root {
+    width: 100%;
+    height: 100%;
+    background: transparent !important;
+    padding: 0;
+    margin: 0;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: transparent !important;
+    color: hsl(var(--foreground));
+  }
 }
 
 /* Window container with true rounded corners */
 .window-wrapper {
   width: 100%;
   height: 100%;
-  background-color: #1e1e2e;
+  background-color: hsl(var(--background));
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
@@ -104,72 +147,18 @@ li {
 
 /* Empty state */
 .empty-state {
-  background-color: #1e1e2e;
+  background-color: hsl(var(--background));
 }
 
 /* Selected item indicator */
 .selected-indicator {
-  box-shadow: inset 3px 0 0 0 #89b4fa;
-}
-
-/* Fade in animation */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-
-/* Spin animation for loading spinners */
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* Delete fade-out */
-@keyframes fadeOut {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-}
-
-.deleting {
-  animation: fadeOut 0.2s ease-out forwards;
+  box-shadow: inset 3px 0 0 0 hsl(var(--primary));
 }
 
 /* Button press effect */
 .button-press:active {
   transform: scale(0.95);
   transition: transform 0.1s ease-out;
-}
-
-/* Dialog entry animation */
-@keyframes dialogEntry {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.dialog-animate {
-  animation: dialogEntry 0.15s ease-out;
 }
 
 /* Mode switch animation */

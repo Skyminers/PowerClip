@@ -11,10 +11,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { Extension, ClipboardItem } from '../types'
-import { theme } from '../theme'
 import { logger } from '../utils/logger'
-
-const colors = theme.colors
+import { cn } from '@/lib/utils'
 
 export function ExtensionSelector({
   extensions,
@@ -115,17 +113,13 @@ export function ExtensionSelector({
 
   return (
     <div
-      className="absolute inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      className="absolute inset-0 z-50 flex items-center justify-center bg-black/50"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !running) onClose()
       }}
     >
-      <div
-        className="w-72 max-h-[70vh] overflow-hidden rounded-lg shadow-xl flex flex-col"
-        style={{ backgroundColor: colors.bgSecondary }}
-      >
-        <div className="px-4 py-3 text-sm font-semibold" style={{ borderBottom: `1px solid ${colors.border}` }}>
+      <div className="w-72 max-h-[70vh] overflow-hidden rounded-lg shadow-xl flex flex-col bg-popover">
+        <div className="px-4 py-3 text-sm font-semibold border-b border-border">
           {running ? 'Running...' : 'Select Extension'}
         </div>
         <div ref={listRef} className="overflow-y-auto">
@@ -133,22 +127,21 @@ export function ExtensionSelector({
             <div
               key={index}
               data-ext-index={index}
-              className="px-4 py-2.5 cursor-pointer text-sm transition-colors"
-              style={{
-                backgroundColor: index === selectedIndex ? colors.selected : 'transparent',
-                color: colors.text,
-              }}
+              className={cn(
+                "px-4 py-2.5 cursor-pointer text-sm transition-colors",
+                index === selectedIndex ? "bg-selected" : "hover:bg-muted/50"
+              )}
               onMouseEnter={() => !running && setSelectedIndex(index)}
               onClick={() => runExtension(ext)}
             >
-              <div className="font-medium">{ext.name}</div>
-              <div className="text-xs mt-0.5 truncate" style={{ color: colors.textMuted }}>
+              <div className="font-medium text-foreground">{ext.name}</div>
+              <div className="text-xs mt-0.5 truncate text-muted-foreground">
                 {ext.command}
               </div>
             </div>
           ))}
         </div>
-        <div className="px-4 py-2 text-xs" style={{ color: colors.textMuted, borderTop: `1px solid ${colors.border}` }}>
+        <div className="px-4 py-2 text-xs text-muted-foreground border-t border-border">
           ↑↓ Navigate · Enter Execute · Esc/Tab Cancel
         </div>
       </div>

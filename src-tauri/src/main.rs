@@ -13,9 +13,13 @@ mod monitor;
 mod window;
 mod app_settings;
 mod semantic;
+mod paste_queue;
+mod quick_menu;
 
 pub use db::DatabaseState;
 pub use hotkey::HotkeyState;
+pub use paste_queue::PasteQueueState;
+pub use quick_menu::QuickMenuState;
 
 use std::sync::{Arc, Mutex};
 
@@ -113,6 +117,14 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
     // Hotkey manager
     let hotkey_state = HotkeyState::new()?;
     app.manage(hotkey_state);
+
+    // Paste queue state
+    let paste_queue_state = PasteQueueState::new();
+    app.manage(paste_queue_state);
+
+    // Quick menu state
+    let quick_menu_state = QuickMenuState::new();
+    app.manage(quick_menu_state);
 
     // System tray
     setup_tray(app)?;
@@ -261,6 +273,9 @@ async fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::history::get_history,
+            commands::history::get_history_by_type,
+            commands::history::get_history_since,
+            commands::history::get_history_filtered,
             commands::history::copy_to_clipboard,
             commands::history::check_clipboard,
             commands::history::delete_history_item,
@@ -287,6 +302,19 @@ async fn main() {
             commands::snippets::add_snippet,
             commands::snippets::update_snippet,
             commands::snippets::delete_snippet,
+            paste_queue::add_to_paste_queue,
+            paste_queue::get_paste_queue,
+            paste_queue::get_paste_queue_count,
+            paste_queue::paste_next_in_queue,
+            paste_queue::remove_from_paste_queue,
+            paste_queue::clear_paste_queue,
+            quick_menu::show_quick_menu,
+            quick_menu::hide_quick_menu,
+            quick_menu::quick_menu_select_next,
+            quick_menu::quick_menu_select_prev,
+            quick_menu::quick_menu_get_selected,
+            quick_menu::quick_menu_copy_selected,
+            quick_menu::is_quick_menu_visible,
         ])
         .run(tauri::generate_context!())
         .expect("Fatal error while running tauri application");

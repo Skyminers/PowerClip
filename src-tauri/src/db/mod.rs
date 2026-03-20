@@ -152,6 +152,83 @@ pub fn get_history(
     Ok(items)
 }
 
+/// Get clipboard history items filtered by type.
+pub fn get_history_by_type(
+    conn: &Connection,
+    item_type: &str,
+    limit: i64,
+) -> Result<Vec<ClipboardItem>, rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT id, type, content, hash, created_at FROM history WHERE type = ? ORDER BY created_at DESC LIMIT ?",
+    )?;
+
+    let items = stmt
+        .query_map(rusqlite::params![item_type, limit], |row| {
+            Ok(ClipboardItem {
+                id: row.get(0)?,
+                item_type: row.get(1)?,
+                content: row.get(2)?,
+                hash: row.get(3)?,
+                created_at: row.get(4)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(items)
+}
+
+/// Get clipboard history items created after a specific datetime.
+/// The `since` parameter should be in format "YYYY-MM-DD HH:MM:SS".
+pub fn get_history_since(
+    conn: &Connection,
+    since: &str,
+    limit: i64,
+) -> Result<Vec<ClipboardItem>, rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT id, type, content, hash, created_at FROM history WHERE created_at >= ? ORDER BY created_at DESC LIMIT ?",
+    )?;
+
+    let items = stmt
+        .query_map(rusqlite::params![since, limit], |row| {
+            Ok(ClipboardItem {
+                id: row.get(0)?,
+                item_type: row.get(1)?,
+                content: row.get(2)?,
+                hash: row.get(3)?,
+                created_at: row.get(4)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(items)
+}
+
+/// Get clipboard history items filtered by type and created after a specific datetime.
+pub fn get_history_by_type_since(
+    conn: &Connection,
+    item_type: &str,
+    since: &str,
+    limit: i64,
+) -> Result<Vec<ClipboardItem>, rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT id, type, content, hash, created_at FROM history WHERE type = ? AND created_at >= ? ORDER BY created_at DESC LIMIT ?",
+    )?;
+
+    let items = stmt
+        .query_map(rusqlite::params![item_type, since, limit], |row| {
+            Ok(ClipboardItem {
+                id: row.get(0)?,
+                item_type: row.get(1)?,
+                content: row.get(2)?,
+                hash: row.get(3)?,
+                created_at: row.get(4)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(items)
+}
+
 /// Clean up old items beyond the specified limit.
 ///
 /// Returns the number of items deleted.

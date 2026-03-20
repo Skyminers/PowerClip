@@ -22,6 +22,87 @@ pub async fn get_history(
     db::get_history(&conn, limit).map_err(|e| e.to_string())
 }
 
+/// Get clipboard history filtered by item type.
+/// Valid types: "text", "image", "file"
+#[tauri::command]
+pub async fn get_history_by_type(
+    state: tauri::State<'_, crate::DatabaseState>,
+    item_type: String,
+    limit: i64,
+) -> Result<Vec<ClipboardItem>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    db::get_history_by_type(&conn, &item_type, limit).map_err(|e| e.to_string())
+}
+
+/// Get clipboard history filtered by time period.
+/// Valid periods: "today", "week", "month"
+#[tauri::command]
+pub async fn get_history_since(
+    state: tauri::State<'_, crate::DatabaseState>,
+    period: String,
+    limit: i64,
+) -> Result<Vec<ClipboardItem>, String> {
+    let since = match period.as_str() {
+        "today" => {
+            chrono::Local::now()
+                .format("%Y-%m-%d 00:00:00")
+                .to_string()
+        }
+        "week" => {
+            (chrono::Local::now() - chrono::Duration::days(7))
+                .format("%Y-%m-%d 00:00:00")
+                .to_string()
+        }
+        "month" => {
+            (chrono::Local::now() - chrono::Duration::days(30))
+                .format("%Y-%m-%d 00:00:00")
+                .to_string()
+        }
+        _ => return Err(format!("Invalid period: {}. Use 'today', 'week', or 'month'.", period)),
+    };
+
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    db::get_history_since(&conn, &since, limit).map_err(|e| e.to_string())
+}
+
+/// Get clipboard history filtered by both type and time period.
+#[tauri::command]
+pub async fn get_history_filtered(
+    state: tauri::State<'_, crate::DatabaseState>,
+    item_type: Option<String>,
+    period: Option<String>,
+    limit: i64,
+) -> Result<Vec<ClipboardItem>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+
+    match (item_type, period) {
+        (Some(t), Some(p)) => {
+            let since = match p.as_str() {
+                "today" => chrono::Local::now().format("%Y-%m-%d 00:00:00").to_string(),
+                "week" => (chrono::Local::now() - chrono::Duration::days(7)).format("%Y-%m-%d 00:00:00").to_string(),
+                "month" => (chrono::Local::now() - chrono::Duration::days(30)).format("%Y-%m-%d 00:00:00").to_string(),
+                _ => return Err(format!("Invalid period: {}. Use 'today', 'week', or 'month'.", p)),
+            };
+            db::get_history_by_type_since(&conn, &t, &since, limit).map_err(|e| e.to_string())
+        }
+        (Some(t), None) => {
+            db::get_history_by_type(&conn, &t, limit).map_err(|e| e.to_string())
+        }
+        (None, Some(p)) => {
+            let since = match p.as_str() {
+                "today" => chrono::Local::now().format("%Y-%m-%d 00:00:00").to_string(),
+                "week" => (chrono::Local::now() - chrono::Duration::days(7)).format("%Y-%m-%d 00:00:00").to_string(),
+                "month" => (chrono::Local::now() - chrono::Duration::days(30)).format("%Y-%m-%d 00:00:00").to_string(),
+                _ => return Err(format!("Invalid period: {}. Use 'today', 'week', or 'month'.", p)),
+            };
+            db::get_history_since(&conn, &since, limit).map_err(|e| e.to_string())
+        }
+        (None, None) => {
+            db::get_history(&conn, limit).map_err(|e| e.to_string())
+        }
+    }
+}
+
 /// Copy a history item back to the system clipboard.
 #[tauri::command]
 pub async fn copy_to_clipboard(item: ClipboardItem) -> Result<(), String> {

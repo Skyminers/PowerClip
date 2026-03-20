@@ -86,3 +86,9 @@ export interface Snippet {
   created_at: string;
   updated_at: string;
 }
+
+/// A queued item with its position in the paste queue
+export interface QueuedItem {
+  position: number;
+  item: ClipboardItem;
+}
