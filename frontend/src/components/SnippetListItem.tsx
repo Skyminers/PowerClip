@@ -1,15 +1,14 @@
 /**
  * Snippet list item component - displays a quick command item
- * Compact layout with buttons and time grouped together
+ * Apple-inspired design: clean, clear, with subtle interactions
  */
 
 import { memo, useState, useCallback, forwardRef } from 'react'
 import { Star, Pencil, Trash2 } from 'lucide-react'
 import type { Snippet } from '../types'
-import { formatTime } from '../utils/helpers'
 import { cn } from '@/lib/utils'
 
-export const SNIPPET_ITEM_HEIGHT = 48
+export const SNIPPET_ITEM_HEIGHT = 52
 
 export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
   snippet: Snippet
@@ -30,7 +29,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
   onEdit,
   style,
   'data-index': dataIndex,
-  contentTruncateLength = 50
+  contentTruncateLength = 60
 }, ref) {
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -49,7 +48,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
 
   // Truncate content for display
   const truncatedContent = snippet.content.length > contentTruncateLength
-    ? snippet.content.slice(0, contentTruncateLength) + '...'
+    ? snippet.content.slice(0, contentTruncateLength) + '…'
     : snippet.content
 
   // Check if snippet has an alias
@@ -61,7 +60,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
       data-id={snippet.id}
       data-index={dataIndex}
       className={cn(
-        "px-4 cursor-pointer",
+        "group cursor-pointer transition-colors duration-150",
         isSelected && "selected-indicator",
         isDeleting && "deleting"
       )}
@@ -70,77 +69,156 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
         height: SNIPPET_ITEM_HEIGHT,
         display: 'flex',
         alignItems: 'center',
-        gap: '12px',
+        padding: '0 16px',
         ...style
       }}
       onClick={() => !isDeleting && onSelect(snippet.id)}
       onDoubleClick={() => !isDeleting && onCopy(snippet)}
     >
-      {/* Star icon - fixed width */}
-      <Star
-        className="w-4 h-4 flex-shrink-0"
-        style={{ color: isSelected ? 'var(--foreground)' : 'var(--accent)' }}
-      />
+      {/* Star indicator - subtle accent */}
+      <div style={{
+        width: 20,
+        height: 20,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+        opacity: isSelected ? 1 : 0.5,
+        transition: 'opacity 0.15s ease'
+      }}>
+        <Star
+          className="w-4 h-4"
+          style={{
+            color: 'var(--accent)',
+            fill: isSelected ? 'var(--accent)' : 'transparent',
+            transition: 'fill 0.15s ease'
+          }}
+        />
+      </div>
 
-      {/* Content - flexible */}
-      <div className="flex-1 min-w-0 overflow-hidden">
+      {/* Content - clear hierarchy */}
+      <div style={{
+        flex: 1,
+        minWidth: 0,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        gap: 2
+      }}>
         {hasAlias ? (
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-sm truncate font-medium" style={{ color: 'var(--foreground)' }}>
+          <>
+            {/* Primary: Alias */}
+            <span style={{
+              fontSize: 14,
+              fontWeight: 500,
+              color: 'var(--foreground)',
+              lineHeight: 1.3,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}>
               {snippet.alias}
             </span>
-            <span className="text-xs truncate" style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}>
+            {/* Secondary: Content preview */}
+            <span style={{
+              fontSize: 12,
+              color: 'var(--muted-foreground)',
+              lineHeight: 1.3,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              opacity: 0.7
+            }}>
               {truncatedContent}
             </span>
-          </div>
+          </>
         ) : (
-          <span className="text-sm truncate block" style={{ color: 'var(--foreground)' }}>
+          <span style={{
+            fontSize: 14,
+            color: 'var(--foreground)',
+            lineHeight: 1.4,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}>
             {snippet.content}
           </span>
         )}
       </div>
 
-      {/* Right side: actions + time in a compact group */}
-      <div className="flex items-center shrink-0" style={{ gap: '2px' }}>
-        {/* Edit button - fixed slot */}
-        <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {!isDeleting && (
+      {/* Actions - appear on hover/selection, subtle */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        marginLeft: 12,
+        opacity: isSelected ? 1 : 0,
+        transition: 'opacity 0.15s ease'
+      }}
+      className="group-hover:opacity-100"
+      >
+        {!isDeleting && (
+          <>
+            {/* Edit button */}
             <button
               onClick={handleEdit}
-              className="rounded hover:bg-blue-500/20 transition-colors"
-              style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-foreground)' }}
+              style={{
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 6,
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--muted-foreground)',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s ease, color 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--accent)'
+                e.currentTarget.style.color = 'var(--foreground)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+                e.currentTarget.style.color = 'var(--muted-foreground)'
+              }}
               title="Edit"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
-          )}
-        </div>
 
-        {/* Delete button - fixed slot */}
-        <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {!isDeleting && (
+            {/* Delete button */}
             <button
               onClick={handleDelete}
-              className="rounded hover:bg-rose-500/20 transition-colors"
-              style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-foreground)' }}
+              style={{
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 6,
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--muted-foreground)',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s ease, color 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'
+                e.currentTarget.style.color = '#ef4444'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+                e.currentTarget.style.color = 'var(--muted-foreground)'
+              }}
               title="Delete"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
-          )}
-        </div>
-
-        {/* Time - compact, right aligned */}
-        <span
-          className="text-xs shrink-0"
-          style={{
-            minWidth: 70,
-            textAlign: 'right',
-            color: 'var(--muted-foreground)'
-          }}
-        >
-          {formatTime(snippet.updated_at)}
-        </span>
+          </>
+        )}
       </div>
     </li>
   )
