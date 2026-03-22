@@ -222,3 +222,98 @@ li {
 .resize-handle {
   -webkit-app-region: no-drag;
 }
+
+/* ========================================
+   Apple HIG-inspired UI enhancements
+   ======================================== */
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scale in animation */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Dialog animation class */
+.animate-dialog-animate {
+  animation: scaleIn 0.15s ease;
+}
+
+/* Fade in animation class */
+.animate-fade-in {
+  animation: fadeIn 0.15s ease;
+}
+
+/* Action buttons - hidden by default, visible on hover/selection */
+.action-buttons {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.group:hover .action-buttons,
+.selected-indicator .action-buttons {
+  opacity: 1;
+}
+
+/* Overlay blur utility */
+.overlay-blur {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Subtle overlay */
+.overlay-subtle {
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Glass panel effect */
+.glass-panel {
+  background-color: var(--popover);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* Smooth transitions for all interactive elements */
+button,
+input,
+[role="button"] {
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+
+/* Placeholder styling */
+::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.5;
+}
+
+/* Selection color */
+::selection {
+  background-color: var(--accent);
+  color: var(--primary-foreground);
+}
+
+/* Focus ring for accessibility */
+.focus-visible:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

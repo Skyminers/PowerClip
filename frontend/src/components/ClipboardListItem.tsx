@@ -1,6 +1,6 @@
 /**
  * Clipboard list item component
- * Compact layout with buttons and time grouped together
+ * Apple-inspired design: clean, clear, with subtle interactions
  */
 
 import { memo, useState, useCallback, forwardRef } from 'react'
@@ -8,7 +8,6 @@ import { FileText, Image, File, BookmarkPlus, Trash2 } from 'lucide-react'
 import type { ClipboardItem, ImageCache } from '../types'
 import { formatContent, formatTime } from '../utils/helpers'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 
 export const TEXT_ITEM_HEIGHT = 48
 export const IMAGE_ITEM_HEIGHT = 80
@@ -75,7 +74,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
       data-id={item.id}
       data-index={dataIndex}
       className={cn(
-        "px-4 cursor-pointer",
+        "group cursor-pointer transition-colors duration-150",
         isSelected && "selected-indicator",
         isDeleting && "deleting"
       )}
@@ -84,97 +83,205 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
         height: itemHeight,
         display: 'flex',
         alignItems: 'center',
-        gap: '12px',
+        padding: '0 16px',
         ...style
       }}
       onClick={() => !isDeleting && onSelect(item.id)}
       onDoubleClick={() => !isDeleting && onCopy(item)}
     >
-      {/* Type icon - fixed 16px */}
-      <ItemIcon
-        className="w-4 h-4 flex-shrink-0"
-        style={{ color: isSelected ? 'var(--foreground)' : 'var(--muted-foreground)' }}
-      />
+      {/* Type icon - subtle accent */}
+      <div style={{
+        width: 20,
+        height: 20,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+        opacity: isSelected ? 1 : 0.6,
+        transition: 'opacity 0.15s ease'
+      }}>
+        <ItemIcon
+          className="w-4 h-4"
+          style={{
+            color: isSelected ? 'var(--foreground)' : 'var(--muted-foreground)',
+            transition: 'color 0.15s ease'
+          }}
+        />
+      </div>
 
       {/* Content - flexible, takes remaining space */}
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div style={{
+        flex: 1,
+        minWidth: 0,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        gap: 2
+      }}>
         {isImage ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs shrink-0" style={{ color: 'var(--muted-foreground)' }}>Image</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              fontSize: 12,
+              color: 'var(--muted-foreground)',
+              flexShrink: 0
+            }}>
+              Image
+            </span>
             {imageCache[item.content] ? (
               <img
                 src={imageCache[item.content]}
                 alt=""
-                className="object-contain rounded shrink-0"
                 style={{
                   maxWidth: imagePreviewMaxWidth,
-                  maxHeight: imagePreviewMaxHeight
+                  maxHeight: imagePreviewMaxHeight,
+                  objectFit: 'contain',
+                  borderRadius: 4,
+                  flexShrink: 0
                 }}
               />
             ) : (
-              <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>...</span>
+              <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>...</span>
             )}
           </div>
         ) : isFile ? (
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xs shrink-0" style={{ color: 'var(--muted-foreground)' }}>File</span>
-            <span className="text-sm truncate" style={{ color: 'var(--foreground)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <span style={{
+              fontSize: 12,
+              color: 'var(--muted-foreground)',
+              flexShrink: 0
+            }}>
+              File
+            </span>
+            <span style={{
+              fontSize: 14,
+              color: 'var(--foreground)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}>
               {formatContent(item.content, item.item_type, contentTruncateLength)}
             </span>
           </div>
         ) : (
-          <span className="text-sm truncate block" style={{ color: 'var(--foreground)' }}>
+          <span style={{
+            fontSize: 14,
+            color: 'var(--foreground)',
+            lineHeight: 1.4,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}>
             {formatContent(item.content, item.item_type, contentTruncateLength)}
           </span>
         )}
       </div>
 
-      {/* Right side: actions + metadata in a compact group */}
-      <div className="flex items-center shrink-0" style={{ gap: '2px' }}>
-        {/* Bookmark button - fixed slot */}
-        <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {!isDeleting && isText && onAddToSnippets && (
-            <button
-              onClick={handleBookmark}
-              className="rounded hover:bg-amber-500/20 transition-colors"
-              style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-foreground)' }}
-              title="Add to Quick Commands"
-            >
-              <BookmarkPlus className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* Delete button - fixed slot */}
-        <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {!isDeleting && (
-            <button
-              onClick={handleDelete}
-              className="rounded hover:bg-rose-500/20 transition-colors"
-              style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-foreground)' }}
-              title="Delete"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* Score badge */}
+      {/* Right side: score + actions + time (time on far right) */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        marginLeft: 12,
+        flexShrink: 0
+      }}>
+        {/* Score badge - subtle */}
         {semanticScore !== undefined && (
-          <Badge variant="score" style={{ marginLeft: 4, marginRight: 4 }}>
+          <span style={{
+            fontSize: 10,
+            fontWeight: 500,
+            color: 'var(--accent)',
+            padding: '2px 6px',
+            borderRadius: 4,
+            backgroundColor: 'rgba(137, 180, 250, 0.15)'
+          }}>
             {formatScore(semanticScore)}
-          </Badge>
+          </span>
         )}
 
-        {/* Time - compact, right aligned */}
-        <span
-          className="text-xs shrink-0"
-          style={{
-            minWidth: 70,
-            textAlign: 'right',
-            color: 'var(--muted-foreground)'
-          }}
+        {/* Actions - appear on hover/selection, before time */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          opacity: isSelected ? 1 : 0,
+          transition: 'opacity 0.15s ease'
+        }}
+        className="group-hover:opacity-100"
         >
+          {!isDeleting && (
+            <>
+              {/* Bookmark button - only for text */}
+              {isText && onAddToSnippets && (
+                <button
+                  onClick={handleBookmark}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--muted-foreground)',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.15s ease, color 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.15)'
+                    e.currentTarget.style.color = '#fbbf24'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                    e.currentTarget.style.color = 'var(--muted-foreground)'
+                  }}
+                  title="Add to Quick Commands"
+                >
+                  <BookmarkPlus className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {/* Delete button */}
+              <button
+                onClick={handleDelete}
+                style={{
+                  width: 28,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--muted-foreground)',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.15s ease, color 0.15s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'
+                  e.currentTarget.style.color = '#ef4444'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                  e.currentTarget.style.color = 'var(--muted-foreground)'
+                }}
+                title="Delete"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Time - compact, on far right */}
+        <span style={{
+          fontSize: 12,
+          color: 'var(--muted-foreground)',
+          textAlign: 'right',
+          minWidth: 60,
+          flexShrink: 0
+        }}>
           {formatTime(item.created_at)}
         </span>
       </div>

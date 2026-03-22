@@ -1,5 +1,6 @@
 /**
  * Add Snippet Dialog component
+ * Apple-inspired design with clean visuals
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
@@ -46,18 +47,31 @@ export function AddSnippetDialog({
           </DialogHeader>
 
           {/* Content preview */}
-          <div className="py-3">
-            <label className="block text-xs mb-2 text-muted-foreground">
+          <div className="px-4 py-4 space-y-2">
+            <label
+              className="text-xs font-medium"
+              style={{ color: 'var(--muted-foreground)' }}
+            >
               Content
             </label>
-            <div className="text-sm p-3 rounded-md bg-background font-mono max-h-24 overflow-y-auto text-foreground">
+            <div
+              className="text-sm p-3 rounded-md font-mono max-h-24 overflow-y-auto scrollbar-thin"
+              style={{
+                backgroundColor: 'var(--muted)',
+                color: 'var(--foreground)',
+                border: '1px solid var(--border)'
+              }}
+            >
               {getPreview(item.content, 200)}
             </div>
           </div>
 
           {/* Alias input */}
-          <div className="pb-3">
-            <label className="block text-xs mb-2 text-muted-foreground">
+          <div className="px-4 pb-4 space-y-2">
+            <label
+              className="text-xs font-medium"
+              style={{ color: 'var(--muted-foreground)' }}
+            >
               Alias (optional)
             </label>
             <Input
@@ -66,12 +80,15 @@ export function AddSnippetDialog({
               onChange={e => setAlias(e.target.value)}
               placeholder="e.g., Docker bash"
             />
-            <p className="text-xs mt-1.5 text-muted-foreground">
+            <p
+              className="text-xs"
+              style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}
+            >
               A short name to help you identify this command
             </p>
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter>
             <Button
               type="button"
               variant="ghost"
@@ -79,9 +96,7 @@ export function AddSnippetDialog({
             >
               Cancel
             </Button>
-            <Button type="submit">
-              Add
-            </Button>
+            <Button type="submit">Add</Button>
           </DialogFooter>
         </form>
       </DialogContent>

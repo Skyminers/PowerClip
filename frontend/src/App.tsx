@@ -810,8 +810,20 @@ function App() {
   return (
     <div className="window-wrapper w-full h-full flex flex-col text-white relative" style={{ opacity: settings.window_opacity }}>
       <WindowDragHandler>
-        <div className="flex items-center gap-2 px-4 py-3 bg-secondary">
-          <Search className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+        <div className="flex items-center gap-3 px-4 py-3 bg-secondary">
+          {/* Search icon */}
+          <div style={{
+            width: 20,
+            height: 20,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: 0.6
+          }}>
+            <Search className="w-4 h-4" style={{ color: 'var(--muted-foreground)' }} />
+          </div>
+
+          {/* Search input */}
           <input
             ref={inputRef}
             type="text"
@@ -819,25 +831,37 @@ function App() {
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={handleInputKeyDown}
             placeholder={viewMode === 'snippets' ? "Search quick commands..." : semanticMode ? "Semantic search..." : "Search..."}
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground no-drag text-foreground"
+            className="flex-1 bg-transparent text-sm outline-none no-drag"
+            style={{ color: 'var(--foreground)' }}
           />
+
+          {/* Loading indicator */}
           {semanticLoading && (
-            <Loader2 className="w-4 h-4 animate-spin flex-shrink-0 text-accent" />
+            <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: 'var(--accent)' }} />
           )}
+
+          {/* Error badge */}
           {semanticError && semanticMode && (
             <Badge variant="destructive" className="flex-shrink-0" title={semanticError}>
               <AlertCircle className="w-3 h-3 mr-1" />
               Search Error
             </Badge>
           )}
+
+          {/* Clear search button */}
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="no-drag p-1 rounded hover:bg-white/10 button-press text-muted-foreground hover:text-foreground"
+              className="no-drag flex items-center justify-center rounded transition-all duration-150 hover:bg-white/10 active:scale-95"
+              style={{ width: 28, height: 28, color: 'var(--muted-foreground)' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--foreground)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--muted-foreground)'}
             >
               <X className="w-4 h-4" />
             </button>
           )}
+
+          {/* AI Search toggle */}
           <SemanticToggle
             enabled={settings.semantic_search_enabled && viewMode === 'history'}
             active={semanticMode}
@@ -845,29 +869,43 @@ function App() {
             onToggle={handleSemanticToggle}
             onRefreshStatus={loadSemanticStatus}
           />
+
+          {/* Quick Commands toggle */}
           <button
             onClick={() => { setViewMode(prev => prev === 'history' ? 'snippets' : 'history'); setSearchQuery(''); setSelectedId(null); setSelectedSnippetId(null); }}
-            className={cn(
-              "p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag mode-switch-animate",
-              viewMode === 'snippets' && "bg-white/10 text-accent",
-              viewMode !== 'snippets' && "text-muted-foreground"
-            )}
+            className="no-drag flex items-center justify-center rounded transition-all duration-150 hover:bg-white/10 active:scale-95"
+            style={{
+              width: 32,
+              height: 32,
+              color: viewMode === 'snippets' ? 'var(--accent)' : 'var(--muted-foreground)',
+              backgroundColor: viewMode === 'snippets' ? 'rgba(137, 180, 250, 0.15)' : 'transparent'
+            }}
             title={`Toggle quick commands (${isDarwin ? 'Cmd' : 'Ctrl'}+P)`}
           >
             <Star className="w-4 h-4" fill={viewMode === 'snippets' ? 'currentColor' : 'none'} />
           </button>
+
+          {/* Add snippet button */}
           {viewMode === 'snippets' && (
             <button
               onClick={() => setShowAddSnippetDialog(true)}
-              className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag button-press text-muted-foreground hover:text-foreground"
+              className="no-drag flex items-center justify-center rounded transition-all duration-150 hover:bg-white/10 active:scale-95"
+              style={{ width: 32, height: 32, color: 'var(--muted-foreground)' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--foreground)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--muted-foreground)'}
               title="Add new quick command"
             >
               <Plus className="w-4 h-4" />
             </button>
           )}
+
+          {/* Settings button */}
           <button
             onClick={() => invoke('open_settings_file').catch(() => {})}
-            className="p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0 no-drag button-press text-muted-foreground hover:text-foreground"
+            className="no-drag flex items-center justify-center rounded transition-all duration-150 hover:bg-white/10 active:scale-95"
+            style={{ width: 32, height: 32, color: 'var(--muted-foreground)' }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--foreground)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--muted-foreground)'}
             title="Edit config file (Cmd+,)"
           >
             <Settings className="w-4 h-4" />

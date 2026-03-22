@@ -1,12 +1,12 @@
 /**
  * Smart Lists Component
  * Quick filters for clipboard items by type and time period
+ * Apple-inspired design with subtle interactions
  */
 
 import { memo, useRef, useEffect } from 'react'
 import { List, Clock, Calendar, FileText, Image, Folder } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 
 export type SmartListFilter = 'all' | 'today' | 'week' | 'text' | 'image' | 'file'
 
@@ -101,7 +101,7 @@ export const SmartLists = memo(function SmartLists({
 
   return (
     <div className="flex justify-center overflow-hidden bg-secondary border-b border-border">
-      <div ref={containerRef} className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto scrollbar-thin">
+      <div ref={containerRef} className="flex items-center gap-0.5 px-2 py-1.5 overflow-x-auto scrollbar-thin">
         {options.map((option) => {
           const isActive = activeFilter === option.id
           const count = counts ? counts[option.id] : undefined
@@ -112,20 +112,42 @@ export const SmartLists = memo(function SmartLists({
               ref={(el) => { if (el) buttonRefs.current.set(option.id, el) }}
               onClick={() => onFilterChange(option.id)}
               className={cn(
-                "flex items-center gap-1.5 px-2 py-1 rounded text-xs whitespace-nowrap transition-colors button-press",
-                isActive ? "font-medium bg-white/15 text-foreground" : "text-muted-foreground hover:text-foreground"
+                "relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs whitespace-nowrap transition-all duration-150",
+                "hover:bg-white/8 active:scale-[0.98]",
+                isActive && "bg-white/12 text-foreground font-medium",
+                !isActive && "text-muted-foreground hover:text-foreground"
               )}
               title={option.description}
             >
-              {option.icon}
+              {/* Active indicator - left accent bar */}
+              {isActive && (
+                <span
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full"
+                  style={{ backgroundColor: 'var(--accent)' }}
+                />
+              )}
+
+              {/* Icon */}
+              <span style={{ opacity: isActive ? 1 : 0.7, transition: 'opacity 0.15s ease' }}>
+                {option.icon}
+              </span>
+
+              {/* Label */}
               <span>{option.label}</span>
+
+              {/* Count badge - subtle */}
               {count !== undefined && count > 0 && (
-                <Badge
-                  variant="muted"
-                  className={cn("text-[10px]", isActive && "bg-white/10")}
+                <span
+                  className={cn(
+                    "text-[10px] px-1.5 py-0.5 rounded",
+                    "transition-colors duration-150",
+                    isActive
+                      ? "bg-white/15 text-foreground"
+                      : "bg-white/8 text-muted-foreground"
+                  )}
                 >
                   {count > 99 ? '99+' : count}
-                </Badge>
+                </span>
               )}
             </button>
           )

@@ -1,5 +1,6 @@
 /**
  * Snippet Dialog component - Used for both adding and editing snippets
+ * Apple-inspired design with clean visuals
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
@@ -58,8 +59,11 @@ export function SnippetDialog({
           </DialogHeader>
 
           {/* Content input */}
-          <div className="py-3">
-            <label className="block text-xs mb-2 text-muted-foreground">
+          <div className="px-4 py-4 space-y-2">
+            <label
+              className="text-xs font-medium"
+              style={{ color: 'var(--muted-foreground)' }}
+            >
               Content
             </label>
             <Textarea
@@ -68,13 +72,16 @@ export function SnippetDialog({
               onChange={e => setContent(e.target.value)}
               placeholder="Enter command or text..."
               rows={4}
-              className="font-mono"
+              className="font-mono resize-none"
             />
           </div>
 
           {/* Alias input */}
-          <div className="pb-3">
-            <label className="block text-xs mb-2 text-muted-foreground">
+          <div className="px-4 pb-4 space-y-2">
+            <label
+              className="text-xs font-medium"
+              style={{ color: 'var(--muted-foreground)' }}
+            >
               Alias (optional)
             </label>
             <Input
@@ -82,12 +89,15 @@ export function SnippetDialog({
               onChange={e => setAlias(e.target.value)}
               placeholder="e.g., Docker bash"
             />
-            <p className="text-xs mt-1.5 text-muted-foreground">
+            <p
+              className="text-xs"
+              style={{ color: 'var(--muted-foreground)', opacity: 0.6 }}
+            >
               A short name to help you identify this command
             </p>
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter>
             <Button
               type="button"
               variant="ghost"

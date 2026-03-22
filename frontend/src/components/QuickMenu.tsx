@@ -1,6 +1,7 @@
 /**
  * Quick Menu Component
  * A minimal popup for quick access to recent clipboard items
+ * Apple-inspired design with subtle interactions
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -124,41 +125,66 @@ export function QuickMenu({ items, imageCache }: QuickMenuProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)'
+      }}
       onClick={hide}
     >
       <div
         ref={menuRef}
-        className="rounded-lg shadow-2xl overflow-hidden animate-dialog-animate bg-background border border-border"
-        style={{ width: '400px', maxHeight: '400px' }}
+        className="rounded-xl overflow-hidden"
+        style={{
+          width: '400px',
+          maxHeight: '400px',
+          backgroundColor: 'var(--background)',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.1)',
+          animation: 'scaleIn 0.15s ease'
+        }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-4 py-2 flex items-center justify-between bg-secondary border-b border-border">
-          <span className="text-sm font-medium text-foreground">
+        <div
+          className="px-4 py-3 flex items-center justify-between"
+          style={{
+            backgroundColor: 'var(--secondary)',
+            borderBottom: '1px solid var(--border)'
+          }}
+        >
+          <span className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
             Quick Menu
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
             ↑↓ Navigate · Enter Select · Esc Close
           </span>
         </div>
 
         {/* Items list */}
-        <div className="overflow-y-auto" style={{ maxHeight: '350px' }}>
+        <div className="overflow-y-auto scrollbar-thin" style={{ maxHeight: '350px' }}>
           {displayItems.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+            <div
+              className="px-4 py-10 text-center text-sm"
+              style={{ color: 'var(--muted-foreground)' }}
+            >
               No items in clipboard
             </div>
           ) : (
             displayItems.map((item, index) => {
               const Icon = ItemIcon(item)
+              const isSelected = index === selectedIndex
+
               return (
                 <div
                   key={item.id}
                   className={cn(
-                    "px-4 py-3 flex items-center gap-3 cursor-pointer transition-colors",
-                    index === selectedIndex && "bg-selected"
+                    "px-4 py-3 flex items-center gap-3 cursor-pointer transition-all duration-150",
+                    isSelected && "selected-indicator"
                   )}
+                  style={{
+                    backgroundColor: isSelected ? 'var(--selected)' : 'transparent'
+                  }}
                   onClick={async () => {
                     setSelectedIndex(index)
                     try {
@@ -170,31 +196,64 @@ export function QuickMenu({ items, imageCache }: QuickMenuProps) {
                   }}
                   onMouseEnter={() => setSelectedIndex(index)}
                 >
-                  <Icon className="w-4 h-4 text-muted-foreground" />
+                  {/* Type icon */}
+                  <div style={{
+                    width: 20,
+                    height: 20,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: isSelected ? 1 : 0.6
+                  }}>
+                    <Icon
+                      className="w-4 h-4"
+                      style={{
+                        color: isSelected ? 'var(--foreground)' : 'var(--muted-foreground)'
+                      }}
+                    />
+                  </div>
 
-                  <div className="flex-1 min-w-0">
+                  {/* Content */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     {item.item_type === 'image' ? (
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">
+                        <span
+                          className="text-xs"
+                          style={{ color: 'var(--muted-foreground)' }}
+                        >
                           Image
                         </span>
                         {imageCache[item.content] && (
                           <img
                             src={imageCache[item.content]}
                             alt="Preview"
-                            className="object-contain rounded"
-                            style={{ maxWidth: '60px', maxHeight: '32px' }}
+                            style={{
+                              maxWidth: '60px',
+                              maxHeight: '32px',
+                              objectFit: 'contain',
+                              borderRadius: 4
+                            }}
                           />
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm truncate text-foreground">
+                      <p
+                        className="text-sm truncate"
+                        style={{
+                          color: 'var(--foreground)',
+                          lineHeight: 1.4
+                        }}
+                      >
                         {formatContent(item.content, item.item_type, 50)}
                       </p>
                     )}
                   </div>
 
-                  <span className="text-xs flex-shrink-0 text-muted-foreground">
+                  {/* Time */}
+                  <span
+                    className="text-xs flex-shrink-0"
+                    style={{ color: 'var(--muted-foreground)' }}
+                  >
                     {formatTime(item.created_at)}
                   </span>
                 </div>
