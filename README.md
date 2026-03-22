@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>A modern clipboard manager built with Rust & Tauri 2.0</strong>
+  <strong>A modern, privacy-focused clipboard manager with AI-powered search</strong>
 </p>
 
 <p align="center">
@@ -17,6 +17,7 @@
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#keyboard-shortcuts">Keyboard Shortcuts</a> •
+  <a href="#configuration">Configuration</a> •
   <a href="#development">Development</a>
 </p>
 
@@ -26,94 +27,201 @@
 
 <br/>
 
-
-
 ## 📖 Introduction
 
-**PowerClip** is a lightweight, fast, and privacy-focused clipboard history manager.
+**PowerClip** is a lightweight, fast, and privacy-focused clipboard history manager with AI-powered semantic search capabilities.
 
-Powered by **Rust** backend performance and **Tauri** lightweight architecture, PowerClip provides a smooth experience while consuming minimal system resources. All data is stored locally in a SQLite database, ensuring security and control.
+Powered by **Rust** backend performance and **Tauri 2.0** lightweight architecture, PowerClip provides a smooth experience while consuming minimal system resources. All data is stored locally in a SQLite database, ensuring your clipboard history stays private and under your control.
 
 ## ✨ Features
 
-- ⚡️ **Blazing Fast** - Rust-powered, millisecond startup and search.
-- 🔒 **Privacy & Security** - Data stored locally in SQLite (Bundled), no network uploads.
-- 📋 **History Tracking** - Automatically monitors and records clipboard text history.
-- 🖥 **System Integration** - Perfect system tray support and native window experience.
-- ⌨️ **Keyboard First** - Global hotkey to summon, supports full keyboard navigation.
-- 🎨 **Modern UI** - Carefully designed interface with React + Tailwind CSS.
-- 🔍 **Smart Search** - Embedding-based natural language search
+### Core Features
 
-![alt text](image/embedding_search.png)
+- ⚡️ **Blazing Fast** - Rust-powered, millisecond startup and search
+- 🔒 **Privacy & Security** - Data stored locally in SQLite, no network uploads required
+- 📋 **Multi-type Support** - Tracks text, images, and file references
+- 🖥 **System Integration** - Native system tray support and window experience
+- ⌨️ **Keyboard First** - Full keyboard navigation with customizable global hotkeys
+- 🎨 **Modern UI** - Apple HIG-inspired design with smooth animations
+
+### Smart Features
+
+- 🔍 **AI Semantic Search** - Find clipboard items using natural language queries (supports OpenAI-compatible embedding APIs)
+- ⭐ **Quick Commands** - Save frequently used snippets with custom aliases for instant access
+- 🏷️ **Smart Lists** - Filter history by type (Text/Image/File) or time period (Today/This Week)
+- 🔌 **Extensions System** - Run shell commands on clipboard content with custom pipelines
+- 📌 **Auto-paste** - Optionally paste content automatically after selection
+
+### Advanced Features
+
+- ⚙️ **Hot-reloadable Config** - Change settings without restarting the app
+- 🪟 **Resizable & Draggable** - Window position and size are remembered
+- 🌙 **Transparent Window** - Adjustable window opacity for seamless desktop integration
 
 ## ⌨️ Keyboard Shortcuts
 
-### Global Operations
+### Global Hotkeys
 
-| OS | Toggle Window |
-| :--- | :--- |
-| **macOS** | `Cmd` + `Shift` + `V` |
-| **Windows / Linux** | `Ctrl` + `Shift` + `V` |
+| Action | macOS | Windows / Linux |
+| :--- | :--- | :--- |
+| Toggle window | `Cmd` + `Shift` + `V` | `Ctrl` + `Shift` + `V` |
+| Add clipboard to Quick Commands | `Cmd` + `Shift` + `S` | `Ctrl` + `Shift` + `S` |
 
-Tip: Hotkey is customizable
+> Note: Windows uses `Ctrl` instead of `Cmd`.
 
-### In-Window Operations
+> All hotkeys are customizable in the settings file.
+
+### In-Window Navigation
 
 | Key | Action |
 | :--- | :--- |
 | `↑` / `↓` | Navigate through history |
-| `Enter` | Copy selected item and paste |
+| `←` / `→` | Switch filter tabs (history) / Toggle views |
+| `Enter` | Copy selected item (and paste if enabled) |
+| `Tab` | Open extension selector (on selected item) |
+| `/` | Focus search input |
 | `Esc` | Close window |
-| `cmd(ctrl) + ,`| Open config file |
+| `Cmd/Ctrl` + `P` | Toggle between History and Quick Commands |
+| `Cmd/Ctrl` + `,` | Open config file in editor |
+
+## 🔧 Configuration
+
+PowerClip uses a JSON configuration file for all settings. Press `Cmd/Ctrl` + `,` to open it in your default editor.
+
+### Configuration Location
+
+- **macOS**: `~/Library/Application Support/PowerClip/settings.json`
+- **Windows**: `%APPDATA%/PowerClip/settings.json`
+
+### Example Configuration
+
+```json
+{
+  "auto_cleanup_enabled": false,
+  "max_items": 100,
+  "hotkey_modifiers": "Meta+Shift",
+  "hotkey_key": "KeyV",
+  "window_opacity": 0.95,
+  "auto_paste_enabled": false,
+  "semantic_search_enabled": false,
+  "embedding_api_url": "https://api.openai.com/v1",
+  "embedding_api_key": "sk-...",
+  "embedding_api_model": "text-embedding-3-small",
+  "embedding_api_dim": 256,
+  "add_to_snippets_hotkey_enabled": true,
+  "add_to_snippets_hotkey_modifiers": "Meta+Shift",
+  "add_to_snippets_hotkey_key": "KeyS",
+  "extensions": [
+    {
+      "name": "Uppercase",
+      "command": "tr '[:lower:]' '[:upper:]'",
+      "timeout": 5000,
+      "close_on_success": true
+    }
+  ]
+}
+```
+
+### Key Settings
+
+| Setting | Description | Default |
+| :--- | :--- | :--- |
+| `max_items` | Maximum history items to keep | `100` |
+| `auto_paste_enabled` | Auto-paste after selection | `false` |
+| `semantic_search_enabled` | Enable AI-powered search | `false` |
+| `embedding_api_url` | OpenAI-compatible API URL | - |
+| `embedding_api_key` | API key for embedding service | - |
+| `extensions` | List of shell command extensions | `[]` |
+
+## 🤖 AI Semantic Search
+
+PowerClip supports natural language search through embedding APIs. To enable:
+
+1. Set `semantic_search_enabled` to `true` in settings
+2. Configure your embedding API credentials:
+   - `embedding_api_url`: Any OpenAI-compatible endpoint
+   - `embedding_api_key`: Your API key
+   - `embedding_api_model`: Model name (e.g., `text-embedding-3-small`)
+   - `embedding_api_dim`: Embedding dimension (typically 256-1536)
+
+3. Save the config file - indexing will start automatically
+
+Compatible with OpenAI, Azure OpenAI, and any OpenAI-compatible embedding services.
+
+## 🔌 Extensions
+
+Extensions allow you to process clipboard content through shell commands. When you select an item and press `Tab`, you can choose an extension to run.
+
+### Extension Configuration
+
+```json
+{
+  "extensions": [
+    {
+      "name": "JSON Format",
+      "command": "python3 -m json.tool",
+      "timeout": 5000,
+      "close_on_success": true
+    },
+    {
+      "name": "Base64 Encode",
+      "command": "base64",
+      "timeout": 3000,
+      "close_on_success": false
+    }
+  ]
+}
+```
+
+- **name**: Display name in the extension selector
+- **command**: Shell command to run (clipboard content via stdin)
+- **timeout**: Maximum execution time in milliseconds
+- **close_on_success**: Whether to close the window after successful execution
 
 ## 🛠 Tech Stack
 
-PowerClip uses cutting-edge cross-platform development technologies:
+PowerClip is built with modern, cross-platform technologies:
 
-* **Core**: [Rust](https://www.rust-lang.org/) & [Tauri 2.0](https://v2.tauri.app/)
-* **Frontend**: [React](https://react.dev/) + TypeScript
-* **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-* **Database**: SQLite (local storage)
-* **Runtime**: [Bun](https://bun.sh/) (build tool)
+| Layer | Technology |
+| :--- | :--- |
+| **Core** | [Rust](https://www.rust-lang.org/) & [Tauri 2.0](https://v2.tauri.app/) |
+| **Frontend** | [React 18](https://react.dev/) + TypeScript |
+| **Styling** | [Tailwind CSS](https://tailwindcss.com/) |
+| **Database** | SQLite (bundled, local storage) |
+| **Build** | [Bun](https://bun.sh/) |
 
 ## 💻 Development
 
-If you want to run locally or contribute, ensure your environment meets these requirements:
-
 ### Prerequisites
 
-- **OS**: macOS 10.15+, Windows 10+, or Linux
-- **Rust**: 1.70+
-- **Node.js / Bun**: Bun 1.0+ recommended
+- **OS**: macOS 10.15+ or Windows 10+
+- **Rust**: 1.70+ (install via [rustup](https://rustup.rs/))
+- **Bun**: 1.0+ recommended (install via [bun.sh](https://bun.sh))
 
 ### Getting Started
 
-1. **Clone the project**
+1. **Clone the repository**
 
 ```bash
-git clone [https://github.com/Skyminers/PowerClip.git](https://github.com/Skyminers/PowerClip.git)
-cd power-clip
+git clone https://github.com/Skyminers/PowerClip.git
+cd PowerClip
 ```
 
 2. **Install dependencies**
-```bash
-# Install frontend dependencies (bun recommended, npm/pnpm/yarn also work)
-bun install
 
-# Download Rust dependencies
-cd src-tauri
-cargo fetch
+```bash
+cd frontend
+bun install
 cd ..
 ```
 
-
 3. **Run development mode**
+
 ```bash
-# This starts both frontend server and Tauri window with hot reload
 bun tauri dev
 ```
 
-
+This starts both the frontend dev server and Tauri window with hot reload.
 
 ### Build for Release
 
@@ -121,7 +229,31 @@ bun tauri dev
 bun tauri build
 ```
 
-Build artifacts will be located in `src-tauri/target/release/bundle`.
+Build artifacts will be located in `src-tauri/target/release/bundle/`.
+
+### Project Structure
+
+```
+PowerClip/
+├── src-tauri/           # Rust backend
+│   ├── src/
+│   │   ├── main.rs      # Application entry point
+│   │   ├── commands/    # Tauri command handlers
+│   │   ├── db/          # Database operations
+│   │   ├── semantic/    # AI search implementation
+│   │   ├── clipboard/   # Clipboard monitoring
+│   │   ├── hotkey/      # Global hotkey handling
+│   │   └── window/      # Window management
+│   └── tauri.conf.json  # Tauri configuration
+├── frontend/            # React frontend
+│   ├── src/
+│   │   ├── components/  # UI components
+│   │   ├── hooks/       # React hooks
+│   │   ├── utils/       # Utility functions
+│   │   └── App.tsx      # Main application
+│   └── package.json
+└── README.md
+```
 
 ## 📄 License
 
