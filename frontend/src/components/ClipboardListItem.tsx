@@ -4,7 +4,7 @@
  */
 
 import { memo, useState, useCallback, forwardRef } from 'react'
-import { FileText, Image, File, Star, Plus, X } from 'lucide-react'
+import { FileText, Image, File, Star, X } from 'lucide-react'
 import type { ClipboardItem, ImageCache } from '../types'
 import { formatContent, formatTime } from '../utils/helpers'
 import { cn } from '@/lib/utils'
@@ -34,7 +34,6 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   onCopy: (item: ClipboardItem) => void
   onDelete: (id: number) => void
   onAddToSnippets?: (item: ClipboardItem) => void
-  onAddToQueue?: (item: ClipboardItem) => void
   style?: React.CSSProperties
   'data-index'?: number
 }>(function ClipboardListItem({
@@ -49,7 +48,6 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   onCopy,
   onDelete,
   onAddToSnippets,
-  onAddToQueue,
   style,
   'data-index': dataIndex
 }, ref) {
@@ -148,16 +146,6 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
                   title="Add to Quick Commands"
                 >
                   <Star className="w-3.5 h-3.5" />
-                </button>
-              )}
-              {onAddToQueue && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onAddToQueue(item); }}
-                  className="p-1 rounded hover:bg-blue-500/20 transition-colors button-press"
-                  style={{ color: '#3b82f6' }}
-                  title="Add to Paste Queue"
-                >
-                  <Plus className="w-3.5 h-3.5" />
                 </button>
               )}
               <button

@@ -14,7 +14,6 @@ import {
   Star,
   Plus,
   Settings,
-  List,
 } from 'lucide-react'
 import type { ClipboardItem, Settings as SettingsType, ImageCache, SemanticStatus, Snippet } from './types'
 import { isDarwin } from './utils/platform'
@@ -60,9 +59,6 @@ function App() {
   const [snippets, setSnippets] = useState<Snippet[]>([])
   const [selectedSnippetId, setSelectedSnippetId] = useState<number | null>(null)
   const [addDialogItem, setAddDialogItem] = useState<ClipboardItem | null>(null)
-
-  // Paste queue state
-  const [pasteQueueCount, setPasteQueueCount] = useState(0)
 
   // Smart list filter state
   const [smartListFilter, setSmartListFilter] = useState<SmartListFilter>('all')
@@ -343,28 +339,6 @@ function App() {
     setShowAddSnippetDialog(false)
   }, [loadSnippets])
 
-  // Paste queue functions
-  const addToPasteQueue = useCallback(async (item: ClipboardItem) => {
-    try {
-      const count = await invoke<number>('add_to_paste_queue', { item })
-      setPasteQueueCount(count)
-    } catch (error) {
-      console.error('[PowerClip] Failed to add to paste queue:', error)
-    }
-  }, [])
-
-  const pasteNextInQueue = useCallback(async () => {
-    try {
-      const item = await invoke<ClipboardItem | null>('paste_next_in_queue')
-      if (item) {
-        const count = await invoke<number>('get_paste_queue_count')
-        setPasteQueueCount(count)
-      }
-    } catch (error) {
-      console.error('[PowerClip] Failed to paste next in queue:', error)
-    }
-  }, [])
-
   // Load settings
   const loadSettings = useCallback(() => {
     invoke<SettingsType>('get_settings')
@@ -414,13 +388,6 @@ function App() {
         setSearchQuery('')
         setSelectedId(null)
         setSelectedSnippetId(null)
-        return
-      }
-
-      // Cmd/Ctrl+' to paste next item in queue
-      if (e.key === '\'' && (isDarwin ? e.metaKey : e.ctrlKey)) {
-        e.preventDefault()
-        pasteNextInQueue()
         return
       }
 
@@ -706,16 +673,6 @@ function App() {
     return () => window.removeEventListener('powerclip:settings-error', handler)
   }, [])
 
-  // Listen for paste queue changes
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const count = (e as CustomEvent<number>).detail
-      setPasteQueueCount(count)
-    }
-    window.addEventListener('powerclip:paste-queue-changed', handler)
-    return () => window.removeEventListener('powerclip:paste-queue-changed', handler)
-  }, [])
-
   // Listen for add-to-snippets hotkey
   useEffect(() => {
     const handleAddToSnippetsHotkey = async () => {
@@ -888,17 +845,6 @@ function App() {
             onToggle={handleSemanticToggle}
             onRefreshStatus={loadSemanticStatus}
           />
-          {/* Paste queue indicator */}
-          {pasteQueueCount > 0 && (
-            <button
-              onClick={() => pasteNextInQueue()}
-              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono no-drag button-press bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
-              title={`Paste Queue: ${pasteQueueCount} items (${isDarwin ? 'Cmd' : 'Ctrl'}+' to paste next)`}
-            >
-              <List className="w-3 h-3" />
-              <span>{pasteQueueCount}</span>
-            </button>
-          )}
           <button
             onClick={() => { setViewMode(prev => prev === 'history' ? 'snippets' : 'history'); setSearchQuery(''); setSelectedId(null); setSelectedSnippetId(null); }}
             className={cn(
@@ -996,7 +942,6 @@ function App() {
                       onCopy={copyItem}
                       onDelete={deleteItem}
                       onAddToSnippets={handleAddToSnippets}
-                      onAddToQueue={addToPasteQueue}
                       style={{ position: 'absolute', transform: `translateY(${virtualRow.start}px)`, width: '100%' }}
                       data-index={virtualRow.index}
                     />

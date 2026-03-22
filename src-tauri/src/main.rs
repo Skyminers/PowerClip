@@ -13,12 +13,10 @@ mod monitor;
 mod window;
 mod app_settings;
 mod semantic;
-mod paste_queue;
 mod quick_menu;
 
 pub use db::DatabaseState;
 pub use hotkey::HotkeyState;
-pub use paste_queue::PasteQueueState;
 pub use quick_menu::QuickMenuState;
 
 use std::sync::{Arc, Mutex};
@@ -117,10 +115,6 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
     // Hotkey manager
     let hotkey_state = HotkeyState::new()?;
     app.manage(hotkey_state);
-
-    // Paste queue state
-    let paste_queue_state = PasteQueueState::new();
-    app.manage(paste_queue_state);
 
     // Quick menu state
     let quick_menu_state = QuickMenuState::new();
@@ -302,12 +296,6 @@ async fn main() {
             commands::snippets::add_snippet,
             commands::snippets::update_snippet,
             commands::snippets::delete_snippet,
-            paste_queue::add_to_paste_queue,
-            paste_queue::get_paste_queue,
-            paste_queue::get_paste_queue_count,
-            paste_queue::paste_next_in_queue,
-            paste_queue::remove_from_paste_queue,
-            paste_queue::clear_paste_queue,
             quick_menu::show_quick_menu,
             quick_menu::hide_quick_menu,
             quick_menu::quick_menu_select_next,
