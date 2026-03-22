@@ -411,8 +411,18 @@ pub fn start_settings_watcher(app_handle: tauri::AppHandle) -> Result<(), String
     let mut watcher = RecommendedWatcher::new(
         move |res: Result<Event, notify::Error>| {
             if let Ok(event) = res {
-                // Only process modify events on the settings file
-                if matches!(event.kind, EventKind::Modify(_)) {
+                // On Windows, editors may use different save strategies:
+                // - Modify: Direct modification
+                // - Create: Some editors create temp files then rename
+                // - Any: Catch-all for edge cases
+                let is_relevant_event = matches!(
+                    event.kind,
+                    EventKind::Modify(_) |
+                    EventKind::Create(_) |
+                    EventKind::Any
+                );
+
+                if is_relevant_event {
                     // Check if any path matches settings.json (case-insensitive)
                     let is_settings = event.paths.iter().any(|p| {
                         p.file_name()

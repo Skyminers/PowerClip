@@ -31,6 +31,9 @@ export function WindowDragHandler({ children }: { children: React.ReactNode }) {
 
     try {
       const window = getCurrentWindow()
+      // On Windows, we need to ensure the window is focused before dragging
+      // This helps with the drag behavior on Windows
+      await window.setFocus()
       await window.startDragging()
     } catch (error) {
       // Log for debugging but don't break the app
@@ -42,7 +45,7 @@ export function WindowDragHandler({ children }: { children: React.ReactNode }) {
     <div
       data-tauri-drag-region
       onMouseDown={handleMouseDown}
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      style={{ WebkitAppRegion: 'drag', cursor: 'move' } as React.CSSProperties}
     >
       {children}
     </div>

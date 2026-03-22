@@ -16,5 +16,6 @@ export const MAX_SHORTCUT_INDEX = 9
 // Window constraints (must match backend)
 export const WINDOW_MIN_WIDTH = 300
 export const WINDOW_MIN_HEIGHT = 200
-export const WINDOW_MAX_WIDTH = 800
-export const WINDOW_MAX_HEIGHT = 600
+// No maximum size limit - let users resize as large as they want
+export const WINDOW_MAX_WIDTH = 10000
+export const WINDOW_MAX_HEIGHT = 10000
