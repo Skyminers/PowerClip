@@ -68,7 +68,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
         isDeleting && "deleting"
       )}
       style={{
-        backgroundColor: isSelected ? 'hsl(var(--selected))' : 'transparent',
+        backgroundColor: isSelected ? 'var(--selected)' : 'transparent',
         height: SNIPPET_ITEM_HEIGHT,
         display: 'flex',
         alignItems: 'center',
@@ -84,7 +84,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <Star
             className="w-4 h-4 flex-shrink-0"
-            style={{ color: isSelected ? 'hsl(var(--foreground))' : 'hsl(var(--accent))' }}
+            style={{ color: isSelected ? 'var(--foreground)' : 'var(--accent)' }}
           />
           {/* Show alias if available, otherwise show content */}
           {hasAlias ? (
@@ -111,7 +111,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
               <button
                 onClick={handleEditClick}
                 className="p-1 rounded hover:bg-white/10 transition-colors button-press"
-                style={{ color: 'hsl(var(--muted-foreground))' }}
+                style={{ color: 'var(--muted-foreground)' }}
                 title="Edit"
               >
                 <Pencil className="w-3.5 h-3.5" />

@@ -93,7 +93,7 @@ export function SemanticToggle({
     switch (step) {
       case 'ready': return active ? '#fff' : '#4ade80'
       case 'indexing': return '#facc15'
-      default: return 'hsl(var(--muted-foreground))'
+      default: return 'var(--muted-foreground)'
     }
   })()
 

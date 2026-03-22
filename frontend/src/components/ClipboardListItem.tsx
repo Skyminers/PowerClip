@@ -84,7 +84,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
         isDeleting && "deleting"
       )}
       style={{
-        backgroundColor: isSelected ? 'hsl(var(--selected))' : 'transparent',
+        backgroundColor: isSelected ? 'var(--selected)' : 'transparent',
         height: itemHeight,
         display: 'flex',
         alignItems: 'center',
@@ -100,7 +100,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <ItemIcon
             className="w-4 h-4 flex-shrink-0"
-            style={{ color: isSelected ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
+            style={{ color: isSelected ? 'var(--foreground)' : 'var(--muted-foreground)' }}
           />
           <div className="flex-1 min-w-0 flex items-center">
             {isImage ? (
