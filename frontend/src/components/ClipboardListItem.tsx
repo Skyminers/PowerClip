@@ -1,23 +1,19 @@
 /**
  * Clipboard list item component
- * Fixed height design: text items show one line, image items show label + preview
+ * Compact layout with buttons and time grouped together
  */
 
 import { memo, useState, useCallback, forwardRef } from 'react'
-import { FileText, Image, File, Star, X } from 'lucide-react'
+import { FileText, Image, File, BookmarkPlus, Trash2 } from 'lucide-react'
 import type { ClipboardItem, ImageCache } from '../types'
 import { formatContent, formatTime } from '../utils/helpers'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
-// Fixed heights for item types
 export const TEXT_ITEM_HEIGHT = 48
 export const IMAGE_ITEM_HEIGHT = 80
 export const FILE_ITEM_HEIGHT = 48
 
-/**
- * Format similarity score as percentage
- */
 function formatScore(score: number): string {
   return (score * 100).toFixed(2) + '%'
 }
@@ -52,9 +48,8 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   'data-index': dataIndex
 }, ref) {
   const [isDeleting, setIsDeleting] = useState(false)
-  const [showActions, setShowActions] = useState(false)
 
-  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+  const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     if (!isDeleting) {
       setIsDeleting(true)
@@ -62,13 +57,16 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
     }
   }, [item.id, isDeleting, onDelete])
 
+  const handleBookmark = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onAddToSnippets?.(item)
+  }, [item, onAddToSnippets])
+
   const isImage = item.item_type === 'image'
   const isFile = item.item_type === 'file'
+  const isText = item.item_type === 'text'
 
-  // Calculate item height based on type
   const itemHeight = isImage ? IMAGE_ITEM_HEIGHT : TEXT_ITEM_HEIGHT
-
-  // Get icon based on item type
   const ItemIcon = isImage ? Image : isFile ? File : FileText
 
   return (
@@ -77,8 +75,8 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
       data-id={item.id}
       data-index={dataIndex}
       className={cn(
-        "relative px-4 cursor-pointer",
-        isSelected && "selected-indicator selected-animate",
+        "px-4 cursor-pointer",
+        isSelected && "selected-indicator",
         isDeleting && "deleting"
       )}
       style={{
@@ -86,91 +84,99 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
         height: itemHeight,
         display: 'flex',
         alignItems: 'center',
+        gap: '12px',
         ...style
       }}
       onClick={() => !isDeleting && onSelect(item.id)}
       onDoubleClick={() => !isDeleting && onCopy(item)}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
     >
-      <div className="flex items-center justify-between gap-3 w-full">
-        {/* Content area */}
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <ItemIcon
-            className="w-4 h-4 flex-shrink-0"
-            style={{ color: isSelected ? 'var(--foreground)' : 'var(--muted-foreground)' }}
-          />
-          <div className="flex-1 min-w-0 flex items-center">
-            {isImage ? (
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground">Image</span>
-                {imageCache[item.content] ? (
-                  <img
-                    src={imageCache[item.content]}
-                    alt="Preview"
-                    className="object-contain rounded"
-                    style={{
-                      maxWidth: `${imagePreviewMaxWidth}px`,
-                      maxHeight: `${imagePreviewMaxHeight}px`
-                    }}
-                  />
-                ) : (
-                  <span className="text-xs text-muted-foreground">Loading...</span>
-                )}
-              </div>
-            ) : isFile ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">File</span>
-                <p className="text-sm truncate text-foreground">
-                  {formatContent(item.content, item.item_type, contentTruncateLength)}
-                </p>
-              </div>
+      {/* Type icon - fixed 16px */}
+      <ItemIcon
+        className="w-4 h-4 flex-shrink-0"
+        style={{ color: isSelected ? 'var(--foreground)' : 'var(--muted-foreground)' }}
+      />
+
+      {/* Content - flexible, takes remaining space */}
+      <div className="flex-1 min-w-0 overflow-hidden">
+        {isImage ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs shrink-0" style={{ color: 'var(--muted-foreground)' }}>Image</span>
+            {imageCache[item.content] ? (
+              <img
+                src={imageCache[item.content]}
+                alt=""
+                className="object-contain rounded shrink-0"
+                style={{
+                  maxWidth: imagePreviewMaxWidth,
+                  maxHeight: imagePreviewMaxHeight
+                }}
+              />
             ) : (
-              <p className="text-sm truncate text-foreground">
-                {formatContent(item.content, item.item_type, contentTruncateLength)}
-              </p>
+              <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>...</span>
             )}
           </div>
+        ) : isFile ? (
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs shrink-0" style={{ color: 'var(--muted-foreground)' }}>File</span>
+            <span className="text-sm truncate" style={{ color: 'var(--foreground)' }}>
+              {formatContent(item.content, item.item_type, contentTruncateLength)}
+            </span>
+          </div>
+        ) : (
+          <span className="text-sm truncate block" style={{ color: 'var(--foreground)' }}>
+            {formatContent(item.content, item.item_type, contentTruncateLength)}
+          </span>
+        )}
+      </div>
+
+      {/* Right side: actions + metadata in a compact group */}
+      <div className="flex items-center shrink-0" style={{ gap: '2px' }}>
+        {/* Bookmark button - fixed slot */}
+        <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {!isDeleting && isText && onAddToSnippets && (
+            <button
+              onClick={handleBookmark}
+              className="rounded hover:bg-amber-500/20 transition-colors"
+              style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-foreground)' }}
+              title="Add to Quick Commands"
+            >
+              <BookmarkPlus className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
-        {/* Metadata area */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Action buttons */}
-          {showActions && !isDeleting && (
-            <>
-              {item.item_type === 'text' && onAddToSnippets && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onAddToSnippets(item); }}
-                  className="p-1 rounded hover:bg-yellow-500/20 transition-colors button-press"
-                  style={{ color: '#eab308' }}
-                  title="Add to Quick Commands"
-                >
-                  <Star className="w-3.5 h-3.5" />
-                </button>
-              )}
-              <button
-                onClick={handleDeleteClick}
-                className="p-1 rounded hover:bg-red-500/20 transition-colors button-press"
-                style={{ color: '#ef4444' }}
-                title="Delete"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </>
-          )}
-          {/* AI search similarity score */}
-          {semanticScore !== undefined && (
-            <Badge
-              variant="score"
-              title={`Semantic similarity: ${formatScore(semanticScore)}`}
+        {/* Delete button - fixed slot */}
+        <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {!isDeleting && (
+            <button
+              onClick={handleDelete}
+              className="rounded hover:bg-rose-500/20 transition-colors"
+              style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-foreground)' }}
+              title="Delete"
             >
-              {formatScore(semanticScore)}
-            </Badge>
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           )}
-          <span className="text-xs text-muted-foreground">
-            {formatTime(item.created_at)}
-          </span>
         </div>
+
+        {/* Score badge */}
+        {semanticScore !== undefined && (
+          <Badge variant="score" style={{ marginLeft: 4, marginRight: 4 }}>
+            {formatScore(semanticScore)}
+          </Badge>
+        )}
+
+        {/* Time - compact, right aligned */}
+        <span
+          className="text-xs shrink-0"
+          style={{
+            minWidth: 70,
+            textAlign: 'right',
+            color: 'var(--muted-foreground)'
+          }}
+        >
+          {formatTime(item.created_at)}
+        </span>
       </div>
     </li>
   )
