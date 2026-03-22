@@ -1,0 +1,154 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+            ext: dmg
+            artifact_name: PowerClip-macOS-arm64
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            ext: msi
+            artifact_name: PowerClip-Windows-x64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('frontend/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: |
+          cd frontend && bun install
+
+      - name: Install Tauri CLI
+        run: |
+          cargo install tauri-cli
+
+      - name: Generate Tauri icons
+        run: |
+          cargo tauri icon src-tauri/icons/icon.png
+
+      - name: Build Tauri app
+        run: |
+          cargo tauri build --bundles ${{ matrix.ext }} --target ${{ matrix.target }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY || '' }}
+          TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD || '' }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: PowerClip-macOS-arm64
+          path: artifacts/macos
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: PowerClip-Windows-x64
+          path: artifacts/windows
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+
+          # macOS DMG
+          if [ -d "artifacts/macos/dmg" ]; then
+            cp artifacts/macos/dmg/*.dmg release-assets/PowerClip-macOS-arm64.dmg || true
+          fi
+
+          # Windows MSI
+          if [ -d "artifacts/windows/msi" ]; then
+            cp artifacts/windows/msi/*.msi release-assets/PowerClip-Windows-x64.msi || true
+          fi
+
+          # List release assets
+          echo "=== Release Assets ==="
+          ls -la release-assets/
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: PowerClip ${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## What's Changed
+
+            See [CHANGELOG](CHANGELOG.md) for details.
+
+            ## Downloads
+
+            | Platform | Download |
+            | :--- | :--- |
+            | **macOS** (Apple Silicon) | `PowerClip-macOS-arm64.dmg` |
+            | **Windows** (x64) | `PowerClip-Windows-x64.msi` |
+
+            ---
+
+            **Full Changelog**: https://github.com/Skyminers/PowerClip/compare/${{ github.event.before }}...${{ github.ref_name }}
+          files: release-assets/*
+          draft: false
+          prerelease: ${{ contains(steps.get_version.outputs.VERSION, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
