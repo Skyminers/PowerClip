@@ -7,6 +7,11 @@
 </p>
 
 <p align="center">
+  <a href="README.md">English</a> •
+  <a href="README_CN.md">简体中文</a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Tauri-2.0-24C8DB?style=flat-square&logo=tauri&logoColor=white" alt="Tauri">
   <img src="https://img.shields.io/badge/Rust-1.70+-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust">
   <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React">
@@ -14,11 +19,11 @@
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#keyboard-shortcuts">Keyboard Shortcuts</a> •
-  <a href="#configuration">Configuration</a> •
-  <a href="#development">Development</a>
+  <a href="#-features">Features</a> •
+  <a href="#-installation">Installation</a> •
+  <a href="#️-keyboard-shortcuts">Shortcuts</a> •
+  <a href="#-configuration">Config</a> •
+  <a href="#-development">Dev</a>
 </p>
 
 <div align="center">
@@ -57,6 +62,13 @@ Powered by **Rust** backend performance and **Tauri 2.0** lightweight architectu
 - ⚙️ **Hot-reloadable Config** - Change settings without restarting the app
 - 🪟 **Resizable & Draggable** - Window position and size are remembered
 - 🌙 **Transparent Window** - Adjustable window opacity for seamless desktop integration
+
+## 📥 Installation
+
+Download the latest release from the [Releases](https://github.com/Skyminers/PowerClip/releases) page:
+
+- **macOS**: Download the `.dmg` file
+- **Windows**: Download the `.msi` or `.exe` installer
 
 ## ⌨️ Keyboard Shortcuts
 
