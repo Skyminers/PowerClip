@@ -674,26 +674,21 @@ function App() {
   }, [])
 
   // Listen for add-to-snippets hotkey
+  // The backend reads clipboard content and passes it as the event payload,
+  // so this works even when the window is hidden and navigator.clipboard is unavailable.
   useEffect(() => {
-    const handleAddToSnippetsHotkey = async () => {
-    console.log('[PowerClip] Add to snippets hotkey triggered')
-      try {
-        // Get current clipboard content
-        const content = await navigator.clipboard.readText()
-        if (content && content.trim()) {
-          // Add to snippets with empty alias
-          const result = await invoke<Snippet>('add_snippet', {
+    const handleAddToSnippetsHotkey = async (e: Event) => {
+      const content = (e as CustomEvent<string>).detail
+      if (content && content.trim()) {
+        try {
+          await invoke('add_snippet', {
             content: content.trim(),
             alias: null
           })
-          console.log('[PowerClip] Added to snippets:', result.id)
-
-          // Show a brief notification (optional - could use toast)
-          // For now, just reload snippets
           loadSnippets()
+        } catch (error) {
+          console.error('[PowerClip] Failed to add to snippets via hotkey:', error)
         }
-      } catch (error) {
-        console.error('[PowerClip] Failed to add to snippets via hotkey:', error)
       }
     }
 

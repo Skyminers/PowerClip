@@ -198,13 +198,23 @@ pub fn register_hotkey_with_settings(
 
             if event.state == HotKeyState::Pressed {
                 if event.id == main_id {
-                    logger::info("Hotkey", "Main hotkey triggered, showing window");
+                    logger::info("Hotkey", "Main hotkey triggered, toggling window");
                     let app_handle = win.app_handle();
-                    let _ = crate::window::show_and_notify(app_handle, &win);
+                    // Toggle: hide if visible, show if hidden
+                    if win.is_visible().unwrap_or(false) {
+                        let _ = crate::window::hide(&win);
+                    } else {
+                        let _ = crate::window::show_and_notify(app_handle, &win);
+                    }
                 } else if event.id == snippets_id {
                     logger::info("Hotkey", "Add to snippets hotkey triggered");
                     let app_handle = win.app_handle();
-                    let _ = app_handle.emit("powerclip:add-to-snippets-hotkey", ());
+                    // Read clipboard in backend so it works even when the window is hidden
+                    if let Some(crate::clipboard::ClipboardContent::Text(text)) = crate::clipboard::get_clipboard_content() {
+                        let _ = app_handle.emit("powerclip:add-to-snippets-hotkey", text);
+                    } else {
+                        logger::info("Hotkey", "No text content in clipboard, skipping add-to-snippets");
+                    }
                 }
             }
         }));
