@@ -494,6 +494,9 @@ pub fn start_settings_watcher(app_handle: tauri::AppHandle) -> Result<(), String
                                     }
                                 }
 
+                                // Apply clipboard poll interval change
+                                crate::monitor::set_poll_interval(settings.clipboard_poll_interval_ms);
+
                                 // Notify frontend
                                 let _ = app.emit("powerclip:settings-changed", ());
                                 logger::info("Settings", "Settings reloaded and event emitted");

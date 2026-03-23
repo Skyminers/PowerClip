@@ -60,10 +60,9 @@ pub async fn get_settings_path() -> Result<String, String> {
 pub async fn open_settings_file() -> Result<(), String> {
     let path = settings_path();
 
-    // Ensure the file exists before opening
+    // Ensure the file exists before opening (with comments intact)
     if !path.exists() {
-        let (settings, _) = app_settings::load_settings()?;
-        app_settings::save_settings(&settings)?;
+        app_settings::load_settings()?;
     }
 
     open::that(&path).map_err(|e| format!("Failed to open settings file: {}", e))

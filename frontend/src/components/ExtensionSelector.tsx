@@ -45,10 +45,11 @@ export function ExtensionSelector({
         timeout: ext.timeout,
       })
 
-      // If the extension produced output, copy it to clipboard
+      // If the extension produced output, copy it to clipboard as text
+      // Extension stdout is always text regardless of the original item type
       if (output.length > 0) {
         await invoke('copy_to_clipboard', {
-          item: { ...selectedItem, content: output },
+          item: { ...selectedItem, item_type: 'text', content: output },
         })
         logger.info('Extension', `Output copied to clipboard (${output.length} bytes)`)
       }
