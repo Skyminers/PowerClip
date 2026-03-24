@@ -13,16 +13,12 @@ export function ResizeHandle() {
 
     try {
       const tauriWindow = getCurrentWindow()
-      // get_window_state returns physical pixels (from outer_size()).
-      // Mouse events use CSS logical pixels. Divide by devicePixelRatio so
-      // the delta and the starting dimensions are in the same unit.
-      const scaleFactor = globalThis.devicePixelRatio || 1
+      // get_window_state returns logical (CSS) pixels — same unit as mouse clientX/Y.
       const currentState = await invoke<{ width: number; height: number; x: number; y: number }>('get_window_state')
       const startX = e.clientX
       const startY = e.clientY
-      // Convert physical → logical
-      const startWidth = Math.round(currentState.width / scaleFactor)
-      const startHeight = Math.round(currentState.height / scaleFactor)
+      const startWidth = currentState.width
+      const startHeight = currentState.height
 
       let lastWidth = startWidth
       let lastHeight = startHeight

@@ -90,7 +90,7 @@ pub fn save_item(
     content: &str,
     hash: &str,
 ) -> Result<Option<ClipboardItem>, rusqlite::Error> {
-    let created_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let created_at = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
     let existing_id: Result<Option<i64>, _> = conn.query_row(
         "SELECT id FROM history WHERE hash = ?",

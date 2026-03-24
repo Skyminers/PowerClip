@@ -18,17 +18,21 @@ pub async fn save_window_state(window: tauri::WebviewWindow) -> Result<(), Strin
     crate::window::config::save_window_config(&config)
 }
 
-/// Get current window configuration.
+/// Get current window configuration in logical (CSS) pixels.
+///
+/// All JS-facing window commands use logical units so the frontend never
+/// needs to know about the device pixel ratio.
 #[tauri::command]
 pub async fn get_window_state(window: tauri::WebviewWindow) -> Result<WindowConfig, String> {
+    let scale = window.scale_factor().map_err(|e| e.to_string())?;
     let position = window.outer_position().map_err(|e| e.to_string())?;
     let size = window.outer_size().map_err(|e| e.to_string())?;
 
     Ok(WindowConfig {
-        x: position.x,
-        y: position.y,
-        width: size.width,
-        height: size.height,
+        x: (position.x as f64 / scale) as i32,
+        y: (position.y as f64 / scale) as i32,
+        width: (size.width as f64 / scale).round() as u32,
+        height: (size.height as f64 / scale).round() as u32,
     })
 }
 
@@ -39,10 +43,10 @@ pub async fn move_window(window: tauri::WebviewWindow, x: i32, y: i32) -> Result
     window.set_position(position).map_err(|e| e.to_string())
 }
 
-/// Resize window to specified dimensions.
+/// Resize window to specified dimensions (logical / CSS pixels).
 #[tauri::command]
 pub async fn resize_window(window: tauri::WebviewWindow, width: u32, height: u32) -> Result<(), String> {
-    let size = tauri::Size::Physical(tauri::PhysicalSize::new(width, height));
+    let size = tauri::Size::Logical(tauri::LogicalSize::new(width as f64, height as f64));
     window.set_size(size).map_err(|e| e.to_string())
 }
 

@@ -5,9 +5,8 @@
 /** Format time as relative time */
 export function formatTime(createdAt: string): string {
   try {
-    // SQLite stores dates as "YYYY-MM-DD HH:MM:SS".
-    // Replace the space separator with T to produce a valid ISO 8601 string
-    // that parses correctly on all platforms (incl. Windows/WebView2).
+    // Timestamps are stored as ISO 8601 ("YYYY-MM-DDTHH:MM:SS").
+    // The replace is a no-op for current data and a fallback for legacy records.
     const date = new Date(createdAt.replace(' ', 'T'))
     const now = new Date()
     const diff = now.getTime() - date.getTime()
