@@ -5,7 +5,9 @@
 /** Format time as relative time */
 export function formatTime(createdAt: string): string {
   try {
-    const date = new Date(createdAt)
+    // Timestamps are stored as ISO 8601 ("YYYY-MM-DDTHH:MM:SS").
+    // The replace is a no-op for current data and a fallback for legacy records.
+    const date = new Date(createdAt.replace(' ', 'T'))
     const now = new Date()
     const diff = now.getTime() - date.getTime()
     const minutes = Math.floor(diff / 60000)
@@ -24,15 +26,16 @@ export function formatFilePaths(content: string, truncateLength: number = 50): s
   try {
     const paths: string[] = JSON.parse(content)
     if (paths.length === 0) return 'No files'
+    // Support both Unix (/) and Windows (\) path separators
+    const basename = (p: string) => p.split(/[/\\]/).filter(Boolean).pop() || p
     if (paths.length === 1) {
-      const path = paths[0]
-      const filename = path.split('/').pop() || path
+      const filename = basename(paths[0])
       return filename.length > truncateLength
         ? '...' + filename.slice(-(truncateLength - 3))
         : filename
     }
     // Multiple files - show count and first filename
-    const firstFile = paths[0].split('/').pop() || paths[0]
+    const firstFile = basename(paths[0])
     const truncated = firstFile.length > 20 ? firstFile.slice(0, 20) + '...' : firstFile
     return `${truncated} +${paths.length - 1} more`
   } catch {

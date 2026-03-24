@@ -3,7 +3,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow, PhysicalSize } from '@tauri-apps/api/window'
+import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window'
 import { WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT, WINDOW_MAX_WIDTH, WINDOW_MAX_HEIGHT } from '../constants'
 
 export function ResizeHandle() {
@@ -12,7 +12,8 @@ export function ResizeHandle() {
     e.stopPropagation()
 
     try {
-      const window = getCurrentWindow()
+      const tauriWindow = getCurrentWindow()
+      // get_window_state returns logical (CSS) pixels — same unit as mouse clientX/Y.
       const currentState = await invoke<{ width: number; height: number; x: number; y: number }>('get_window_state')
       const startX = e.clientX
       const startY = e.clientY
@@ -39,7 +40,8 @@ export function ResizeHandle() {
               lastWidth = pendingWidth
               lastHeight = pendingHeight
               try {
-                await window.setSize(new PhysicalSize(pendingWidth, pendingHeight))
+                // Use LogicalSize so Tauri applies the correct DPI scaling
+                await tauriWindow.setSize(new LogicalSize(pendingWidth, pendingHeight))
               } catch {
                 // Ignore resize errors
               }

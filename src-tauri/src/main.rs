@@ -135,7 +135,7 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
         });
     }
 
-    // Start clipboard polling
+    // Start clipboard polling (interval is set later once settings are loaded)
     monitor::start_clipboard_monitor(app.handle().clone());
 
     // Restore window geometry
@@ -178,6 +178,9 @@ fn initialize_app(app: &tauri::App) -> Result<(), String> {
     )?;
 
     drop(guard);
+
+    // Apply clipboard poll interval from settings
+    monitor::set_poll_interval(settings.clipboard_poll_interval_ms);
 
     // Initialize semantic enabled tracker before starting settings watcher
     app_settings::init_semantic_tracker(settings.semantic_search_enabled);

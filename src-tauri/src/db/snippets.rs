@@ -42,7 +42,7 @@ pub fn add_snippet(
     content: &str,
     alias: Option<&str>,
 ) -> Result<Snippet, rusqlite::Error> {
-    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
     conn.execute(
         "INSERT INTO snippets (content, alias, created_at, updated_at) VALUES (?, ?, ?, ?)",
@@ -70,7 +70,7 @@ pub fn update_snippet(
     content: &str,
     alias: Option<&str>,
 ) -> Result<bool, rusqlite::Error> {
-    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
     let affected = conn.execute(
         "UPDATE snippets SET content = ?, alias = ?, updated_at = ? WHERE id = ?",
