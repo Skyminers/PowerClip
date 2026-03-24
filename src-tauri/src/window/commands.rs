@@ -32,10 +32,10 @@ pub async fn get_window_state(window: tauri::WebviewWindow) -> Result<WindowConf
     })
 }
 
-/// Move window to specified position.
+/// Move window to specified position (coordinates are in logical / CSS pixels).
 #[tauri::command]
 pub async fn move_window(window: tauri::WebviewWindow, x: i32, y: i32) -> Result<(), String> {
-    let position = tauri::Position::Physical(tauri::PhysicalPosition::new(x, y));
+    let position = tauri::Position::Logical(tauri::LogicalPosition::new(x as f64, y as f64));
     window.set_position(position).map_err(|e| e.to_string())
 }
 

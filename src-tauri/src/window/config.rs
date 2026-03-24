@@ -58,8 +58,8 @@ pub fn load_window_config() -> Result<WindowConfig, String> {
     let config_path = window_config_path();
 
     if !config_path.exists() {
-        logger::debug("WindowConfig", "No config file found, using defaults");
-        return Ok(WindowConfig::default());
+        // No saved geometry yet — let Tauri use the logical defaults from tauri.conf.json
+        return Err("No window config file found".to_string());
     }
 
     let json = fs::read_to_string(&config_path).map_err(|e| e.to_string())?;

@@ -3,7 +3,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow, PhysicalSize } from '@tauri-apps/api/window'
+import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window'
 import { WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT, WINDOW_MAX_WIDTH, WINDOW_MAX_HEIGHT } from '../constants'
 
 export function ResizeHandle() {
@@ -12,12 +12,17 @@ export function ResizeHandle() {
     e.stopPropagation()
 
     try {
-      const window = getCurrentWindow()
+      const tauriWindow = getCurrentWindow()
+      // get_window_state returns physical pixels (from outer_size()).
+      // Mouse events use CSS logical pixels. Divide by devicePixelRatio so
+      // the delta and the starting dimensions are in the same unit.
+      const scaleFactor = globalThis.devicePixelRatio || 1
       const currentState = await invoke<{ width: number; height: number; x: number; y: number }>('get_window_state')
       const startX = e.clientX
       const startY = e.clientY
-      const startWidth = currentState.width
-      const startHeight = currentState.height
+      // Convert physical → logical
+      const startWidth = Math.round(currentState.width / scaleFactor)
+      const startHeight = Math.round(currentState.height / scaleFactor)
 
       let lastWidth = startWidth
       let lastHeight = startHeight
@@ -39,7 +44,8 @@ export function ResizeHandle() {
               lastWidth = pendingWidth
               lastHeight = pendingHeight
               try {
-                await window.setSize(new PhysicalSize(pendingWidth, pendingHeight))
+                // Use LogicalSize so Tauri applies the correct DPI scaling
+                await tauriWindow.setSize(new LogicalSize(pendingWidth, pendingHeight))
               } catch {
                 // Ignore resize errors
               }
