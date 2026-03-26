@@ -186,10 +186,13 @@ export function QuickMenu({ items, imageCache }: QuickMenuProps) {
                     backgroundColor: isSelected ? 'var(--selected)' : 'transparent'
                   }}
                   onClick={async () => {
-                    setSelectedIndex(index)
                     try {
-                      await invoke('quick_menu_copy_selected', { items: displayItems })
+                      // Sync backend selection to clicked item, then copy
+                      const item = displayItems[index]
+                      await invoke('copy_to_clipboard', { item })
+                      await invoke('hide_quick_menu')
                       setVisible(false)
+                      await invoke('simulate_paste')
                     } catch (err) {
                       console.error('Failed to copy selected:', err)
                     }

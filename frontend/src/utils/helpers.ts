@@ -14,7 +14,11 @@ export function formatTime(createdAt: string): string {
 
     if (minutes < 1) return 'Just now'
     if (minutes < 60) return `${minutes} min ago`
-    if (minutes < 1440) return `${Math.floor(minutes / 60)} hours ago`
+    const hours = Math.floor(minutes / 60)
+    if (minutes < 1440) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`
+    const days = Math.floor(minutes / 1440)
+    if (days === 1) return 'Yesterday'
+    if (days < 7) return `${days} days ago`
     return date.toLocaleDateString()
   } catch {
     return createdAt

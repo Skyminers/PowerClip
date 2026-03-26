@@ -3,7 +3,7 @@
  * Apple-inspired design: clean, clear, with subtle interactions
  */
 
-import { memo, useState, useCallback, forwardRef } from 'react'
+import { memo, useCallback, forwardRef } from 'react'
 import { FileText, Image, File, BookmarkPlus, Trash2 } from 'lucide-react'
 import type { ClipboardItem, ImageCache } from '../types'
 import { formatContent, formatTime } from '../utils/helpers'
@@ -46,15 +46,10 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   style,
   'data-index': dataIndex
 }, ref) {
-  const [isDeleting, setIsDeleting] = useState(false)
-
   const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!isDeleting) {
-      setIsDeleting(true)
-      onDelete(item.id)
-    }
-  }, [item.id, isDeleting, onDelete])
+    onDelete(item.id)
+  }, [item.id, onDelete])
 
   const handleBookmark = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -75,8 +70,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
       data-index={dataIndex}
       className={cn(
         "group cursor-pointer transition-colors duration-150",
-        isSelected && "selected-indicator",
-        isDeleting && "deleting"
+        isSelected && "selected-indicator"
       )}
       style={{
         backgroundColor: isSelected ? 'var(--selected)' : 'transparent',
@@ -86,8 +80,8 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
         padding: '0 16px',
         ...style
       }}
-      onClick={() => !isDeleting && onSelect(item.id)}
-      onDoubleClick={() => !isDeleting && onCopy(item)}
+      onClick={() => onSelect(item.id)}
+      onDoubleClick={() => onCopy(item)}
     >
       {/* Type icon - subtle accent */}
       <div style={{
@@ -209,9 +203,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
         }}
         className="group-hover:opacity-100"
         >
-          {!isDeleting && (
-            <>
-              {/* Bookmark button - only for text */}
+          {/* Bookmark button - only for text */}
               {isText && onAddToSnippets && (
                 <button
                   onClick={handleBookmark}
@@ -270,8 +262,6 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
-            </>
-          )}
         </div>
 
         {/* Time - compact, on far right */}

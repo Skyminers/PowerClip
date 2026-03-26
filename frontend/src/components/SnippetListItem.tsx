@@ -3,7 +3,7 @@
  * Apple-inspired design: clean, clear, with subtle interactions
  */
 
-import { memo, useState, useCallback, forwardRef } from 'react'
+import { memo, useCallback, forwardRef } from 'react'
 import { Star, Pencil, Trash2 } from 'lucide-react'
 import type { Snippet } from '../types'
 import { cn } from '@/lib/utils'
@@ -31,25 +31,21 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
   'data-index': dataIndex,
   contentTruncateLength = 60
 }, ref) {
-  const [isDeleting, setIsDeleting] = useState(false)
-
   const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!isDeleting) {
-      setIsDeleting(true)
-      onDelete(snippet.id)
-    }
-  }, [snippet.id, isDeleting, onDelete])
+    onDelete(snippet.id)
+  }, [snippet.id, onDelete])
 
   const handleEdit = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     onEdit(snippet)
   }, [snippet, onEdit])
 
-  // Truncate content for display
-  const truncatedContent = snippet.content.length > contentTruncateLength
-    ? snippet.content.slice(0, contentTruncateLength) + '…'
-    : snippet.content
+  // Truncate content for display, replacing newlines with spaces for single-line rendering
+  const flatContent = snippet.content.replace(/\n/g, ' ')
+  const truncatedContent = flatContent.length > contentTruncateLength
+    ? flatContent.slice(0, contentTruncateLength) + '…'
+    : flatContent
 
   // Check if snippet has an alias
   const hasAlias = snippet.alias && snippet.alias.trim().length > 0
@@ -61,8 +57,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
       data-index={dataIndex}
       className={cn(
         "group cursor-pointer transition-colors duration-150",
-        isSelected && "selected-indicator",
-        isDeleting && "deleting"
+        isSelected && "selected-indicator"
       )}
       style={{
         backgroundColor: isSelected ? 'var(--selected)' : 'transparent',
@@ -72,8 +67,8 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
         padding: '0 16px',
         ...style
       }}
-      onClick={() => !isDeleting && onSelect(snippet.id)}
-      onDoubleClick={() => !isDeleting && onCopy(snippet)}
+      onClick={() => onSelect(snippet.id)}
+      onDoubleClick={() => onCopy(snippet)}
     >
       {/* Star indicator - subtle accent */}
       <div style={{
@@ -142,7 +137,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap'
           }}>
-            {snippet.content}
+            {truncatedContent}
           </span>
         )}
       </div>
@@ -158,9 +153,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
       }}
       className="group-hover:opacity-100"
       >
-        {!isDeleting && (
-          <>
-            {/* Edit button */}
+        {/* Edit button */}
             <button
               onClick={handleEdit}
               style={{
@@ -217,8 +210,6 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
-          </>
-        )}
       </div>
     </li>
   )

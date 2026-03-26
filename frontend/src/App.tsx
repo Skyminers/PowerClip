@@ -39,7 +39,6 @@ import {
   SNIPPET_ITEM_HEIGHT
 } from './components'
 import type { SmartListFilter } from './components'
-import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
 function App() {
@@ -129,7 +128,7 @@ function App() {
   }, [])
 
   // Filter items by smart list type
-  const smartListFilteredItems = useMemo(() => {
+  const filteredItems = useMemo(() => {
     if (semanticMode && semanticResults.length > 0 && searchQuery.length > 0) {
       // In semantic mode, use semantic results
       let results = semanticResults.map(r => r.item)
@@ -162,30 +161,25 @@ function App() {
       filtered = items.filter(item => item.created_at >= weekAgoStr)
     }
 
-    // Then apply search filter
-    if (searchLower) {
-      filtered = filtered.filter(item => item.content.toLowerCase().includes(searchLower))
+    // Then apply search filter (debounced to avoid jank on large lists)
+    if (debouncedSearchLower) {
+      filtered = filtered.filter(item => item.content.toLowerCase().includes(debouncedSearchLower))
     }
 
     return filtered
-  }, [items, smartListFilter, searchLower, semanticMode, semanticResults, searchQuery, todayStr, weekAgoStr])
+  }, [items, smartListFilter, debouncedSearchLower, semanticMode, semanticResults, searchQuery, todayStr, weekAgoStr])
 
-  // Alias for backward compatibility
-  const filteredItems = smartListFilteredItems
-
-  // Calculate counts for smart list badges
+  // Calculate counts for smart list badges (single pass)
   const smartListCounts = useMemo(() => {
-    const todayItems = items.filter(item => item.created_at.startsWith(todayStr))
-    const weekItems = items.filter(item => item.created_at >= weekAgoStr)
-
-    return {
-      all: items.length,
-      today: todayItems.length,
-      week: weekItems.length,
-      text: items.filter(item => item.item_type === 'text').length,
-      image: items.filter(item => item.item_type === 'image').length,
-      file: items.filter(item => item.item_type === 'file').length,
+    const counts = { all: items.length, today: 0, week: 0, text: 0, image: 0, file: 0 }
+    for (const item of items) {
+      if (item.created_at.startsWith(todayStr)) counts.today++
+      if (item.created_at >= weekAgoStr) counts.week++
+      if (item.item_type === 'text') counts.text++
+      else if (item.item_type === 'image') counts.image++
+      else if (item.item_type === 'file') counts.file++
     }
+    return counts
   }, [items, todayStr, weekAgoStr])
 
   // Map item id to semantic score for quick lookup
@@ -244,16 +238,12 @@ function App() {
   const deleteItem = useCallback(async (itemId: number) => {
     try {
       await invoke('delete_history_item', { itemId })
-      // Remove from list
       setItems(prev => prev.filter(item => item.id !== itemId))
-      // Clear selection if deleted item was selected
-      if (selectedId === itemId) {
-        setSelectedId(null)
-      }
+      setSelectedId(prev => prev === itemId ? null : prev)
     } catch (error) {
       console.error('Failed to delete item:', error)
     }
-  }, [selectedId])
+  }, [])
 
   // Load snippets
   const loadSnippets = useCallback(async () => {
@@ -291,13 +281,11 @@ function App() {
     try {
       await invoke('delete_snippet', { id: snippetId })
       setSnippets(prev => prev.filter(s => s.id !== snippetId))
-      if (selectedSnippetId === snippetId) {
-        setSelectedSnippetId(null)
-      }
+      setSelectedSnippetId(prev => prev === snippetId ? null : prev)
     } catch (error) {
       console.error('Failed to delete snippet:', error)
     }
-  }, [selectedSnippetId])
+  }, [])
 
   // Add to snippets
   const handleAddToSnippets = useCallback((item: ClipboardItem) => {
@@ -454,30 +442,21 @@ function App() {
           }
         }
         break
-      case 'ArrowLeft':
-        e.preventDefault()
-        if (viewModeRef.current === 'history') {
-          const currentIdx = smartListTabs.indexOf(smartListFilter)
-          const newIdx = currentIdx > 0 ? currentIdx - 1 : smartListTabs.length - 1
-          setSmartListFilter(smartListTabs[newIdx])
-        }
-        break
-      case 'ArrowRight':
-        e.preventDefault()
-        if (viewModeRef.current === 'history') {
-          const currentIdx = smartListTabs.indexOf(smartListFilter)
-          const newIdx = currentIdx < smartListTabs.length - 1 ? currentIdx + 1 : 0
-          setSmartListFilter(smartListTabs[newIdx])
-        }
-        break
+      // ArrowLeft/Right: let the browser handle cursor movement in the input
       case 'Enter':
         e.preventDefault()
-        // Copy the first item if there's a search query
-        if (searchQuery && filteredItems.length > 0) {
-          copyItem(filteredItems[0])
-        } else if (!searchQuery && selectedId !== null) {
+        if (viewModeRef.current === 'snippets') {
+          if (selectedSnippetId !== null) {
+            const snippet = filteredSnippets.find(s => s.id === selectedSnippetId)
+            if (snippet) copySnippet(snippet)
+          } else if (filteredSnippets.length > 0) {
+            copySnippet(filteredSnippets[0])
+          }
+        } else if (selectedId !== null) {
           const item = filteredItems.find(i => i.id === selectedId)
           if (item) copyItem(item)
+        } else if (filteredItems.length > 0) {
+          copyItem(filteredItems[0])
         }
         break
       case 'Escape':
@@ -490,7 +469,7 @@ function App() {
         break
       // Let all other keys (including numbers) pass through for text input
     }
-  }, [searchQuery, filteredItems, selectedId, copyItem, smartListTabs, smartListFilter])
+  }, [searchQuery, filteredItems, filteredSnippets, selectedId, selectedSnippetId, copyItem, copySnippet])
 
   // List keyboard navigation - handles navigation when list is focused
   const handleListKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -582,6 +561,27 @@ function App() {
     }
   }, [filteredItems, filteredSnippets, selectedId, selectedSnippetId, settings.extensions.length, copyItem, copySnippet, smartListTabs, smartListFilter])
 
+  // Load image URLs into cache for a batch of items
+  const loadImageUrls = useCallback((imageItems: ClipboardItem[]) => {
+    if (imageItems.length === 0) return
+    Promise.all(
+      imageItems.map(item =>
+        invoke<string>('get_image_asset_url', { relativePath: item.content })
+          .then(url => [item.content, url] as [string, string])
+          .catch(() => null)
+      )
+    ).then(entries => {
+      const validEntries = entries.filter((e): e is [string, string] => e !== null)
+      if (validEntries.length > 0) {
+        setImageCache(prev => {
+          const newCache = { ...prev }
+          validEntries.forEach(([key, url]) => { newCache[key] = url })
+          return newCache
+        })
+      }
+    })
+  }, [])
+
   // Load history (returns data without setting state - caller decides when to set)
   const fetchHistory = useCallback(async (): Promise<ClipboardItem[] | null> => {
     try {
@@ -598,30 +598,10 @@ function App() {
     const result = await fetchHistory()
     if (result) {
       setItems(result)
-
-      // Load images asynchronously in batch
-      const imageItems = result.filter(i => i.item_type === 'image')
-      if (imageItems.length > 0) {
-        Promise.all(
-          imageItems.map(item =>
-            invoke<string>('get_image_asset_url', { relativePath: item.content })
-              .then(url => [item.content, url] as [string, string])
-              .catch(() => null)
-          )
-        ).then(entries => {
-          const validEntries = entries.filter((e): e is [string, string] => e !== null)
-          if (validEntries.length > 0) {
-            setImageCache(prev => {
-              const newCache = { ...prev }
-              validEntries.forEach(([key, url]) => { newCache[key] = url })
-              return newCache
-            })
-          }
-        })
-      }
+      loadImageUrls(result.filter(i => i.item_type === 'image'))
     }
     return result
-  }, [fetchHistory])
+  }, [fetchHistory, loadImageUrls])
 
   // Initialize
   useEffect(() => {
@@ -722,47 +702,17 @@ function App() {
         }
       })
 
-      // Reset scroll position after state update and DOM recreation
-      // Multiple attempts to ensure it works
-      const resetScroll = () => {
-        if (listRef.current) {
-          listRef.current.scrollTop = 0
-        }
-      }
+      // Scroll reset is handled by the listKey useEffect below
 
-      requestAnimationFrame(resetScroll)
-      setTimeout(resetScroll, 10)
-      setTimeout(resetScroll, 50)
-      setTimeout(resetScroll, 100)
-
-      // Load images asynchronously
       if (items) {
-        const imageItems = items.filter(i => i.item_type === 'image')
-        if (imageItems.length > 0) {
-          Promise.all(
-            imageItems.map(item =>
-              invoke<string>('get_image_asset_url', { relativePath: item.content })
-                .then(url => [item.content, url] as [string, string])
-                .catch(() => null)
-            )
-          ).then(entries => {
-            const validEntries = entries.filter((e): e is [string, string] => e !== null)
-            if (validEntries.length > 0) {
-              setImageCache(prev => {
-                const newCache = { ...prev }
-                validEntries.forEach(([key, url]) => { newCache[key] = url })
-                return newCache
-              })
-            }
-          })
-        }
+        loadImageUrls(items.filter(i => i.item_type === 'image'))
       }
 
       setTimeout(() => inputRef.current?.focus(), settings.focus_delay_ms)
     }
     window.addEventListener('powerclip:window-shown', handler)
     return () => window.removeEventListener('powerclip:window-shown', handler)
-  }, [fetchHistory, loadSnippets, settings.focus_delay_ms])
+  }, [fetchHistory, loadSnippets, loadImageUrls, settings.focus_delay_ms])
 
   // Reset scroll when listKey changes (window is shown)
   useEffect(() => {
