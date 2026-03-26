@@ -26,7 +26,7 @@ import {
   EmptyState,
   StatusBar,
   ClipboardListItem,
-  ExtensionSelector,
+  ExtensionBar,
   SemanticToggle,
   SnippetListItem,
   AddSnippetDialog,
@@ -473,8 +473,6 @@ function App() {
 
   // List keyboard navigation - handles navigation when list is focused
   const handleListKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (showExtensionsRef.current) return
-
     // Handle snippets mode
     if (viewModeRef.current === 'snippets') {
       const idx = filteredSnippets.findIndex(s => s.id === selectedSnippetId)
@@ -858,23 +856,21 @@ function App() {
         </div>
       </WindowDragHandler>
 
-      {showExtensions && viewMode === 'history' && (
-        <ExtensionSelector
+      {/* Extension Bar - inline, replaces smart list filters when active */}
+      {showExtensions && viewMode === 'history' ? (
+        <ExtensionBar
           extensions={settings.extensions}
           selectedItem={filteredItems.find(i => i.id === selectedId) || null}
           onClose={() => setShowExtensions(false)}
           onCloseWindow={() => { setShowExtensions(false); setSearchQuery(''); invoke('hide_window').catch(() => {}) }}
         />
-      )}
-
-      {/* Smart Lists Filter - only show in history mode */}
-      {viewMode === 'history' && (
+      ) : viewMode === 'history' ? (
         <SmartLists
           activeFilter={smartListFilter}
           onFilterChange={setSmartListFilter}
           counts={smartListCounts}
         />
-      )}
+      ) : null}
 
       {/* Add Snippet Dialog */}
       {addDialogItem && (
@@ -981,6 +977,8 @@ function App() {
         hotkeyModifiers={settings.hotkey_modifiers}
         hotkeyKey={settings.hotkey_key}
         settingsError={settingsError}
+        hasExtensions={settings.extensions.length > 0}
+        hasSelection={selectedId !== null}
       />
       <ResizeHandle />
 

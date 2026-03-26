@@ -15,6 +15,8 @@ export function StatusBar({
   hotkeyModifiers,
   hotkeyKey,
   settingsError,
+  hasExtensions = false,
+  hasSelection = false,
 }: {
   totalCount: number
   filteredCount: number
@@ -24,6 +26,8 @@ export function StatusBar({
   hotkeyModifiers: string
   hotkeyKey: string
   settingsError?: string | null
+  hasExtensions?: boolean
+  hasSelection?: boolean
 }) {
   const hotkeyDisplay = formatHotkey(hotkeyModifiers, hotkeyKey)
 
@@ -91,6 +95,9 @@ export function StatusBar({
         <ShortcutHint keys="↑↓" label="Navigate" />
         {viewMode === 'history' && <ShortcutHint keys="←→" label="Filter" />}
         {viewMode === 'snippets' && <ShortcutHint keys="←→" label="History" />}
+        {viewMode === 'history' && hasExtensions && hasSelection && (
+          <ShortcutHint keys="Tab" label="Plugins" />
+        )}
         <ShortcutHint keys="/" label="Search" />
         <ShortcutHint keys="Esc" label="Close" />
         <span style={{ color: 'var(--muted-foreground)', opacity: 0.7 }}>{hotkeyDisplay}</span>
