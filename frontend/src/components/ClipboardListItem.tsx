@@ -61,6 +61,8 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
   const isText = item.item_type === 'text'
 
   const itemHeight = isImage ? IMAGE_ITEM_HEIGHT : TEXT_ITEM_HEIGHT
+  // Cap image preview height to fit within item height with vertical padding
+  const effectiveImageMaxHeight = Math.min(imagePreviewMaxHeight, itemHeight - 16)
   const ItemIcon = isImage ? Image : isFile ? File : FileText
 
   return (
@@ -78,6 +80,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
         display: 'flex',
         alignItems: 'center',
         padding: '0 16px',
+        overflow: 'hidden',
         ...style
       }}
       onClick={() => onSelect(item.id)}
@@ -128,7 +131,7 @@ export const ClipboardListItem = memo(forwardRef<HTMLLIElement, {
                 alt=""
                 style={{
                   maxWidth: imagePreviewMaxWidth,
-                  maxHeight: imagePreviewMaxHeight,
+                  maxHeight: effectiveImageMaxHeight,
                   objectFit: 'contain',
                   borderRadius: 4,
                   flexShrink: 0
