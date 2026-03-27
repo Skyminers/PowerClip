@@ -143,7 +143,7 @@ export function SemanticToggle({
       {open && (
         <div
           ref={panelRef}
-          className="no-drag absolute top-[calc(100%+8px)] right-0 w-80 rounded-xl z-50 overflow-hidden"
+          className="no-drag absolute top-[calc(100%+8px)] right-0 w-80 rounded-xl z-50 overflow-hidden max-h-[70vh] overflow-y-auto"
           style={{
             backgroundColor: 'var(--popover)',
             boxShadow: '0 12px 40px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.08)',
