@@ -16,6 +16,8 @@ pub struct ClipboardItem {
     pub content: String,
     pub hash: String,
     pub created_at: String,
+    #[serde(default)]
+    pub is_favorited: bool,
 }
 
 /// Database connection state.
@@ -53,6 +55,17 @@ impl DatabaseState {
             (),
         )?;
         conn.execute("PRAGMA foreign_keys = ON", ())?;
+
+        // Migration: add is_favorited column if missing
+        let has_favorited: bool = conn
+            .prepare("PRAGMA table_info(history)")?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(|r| r.ok())
+            .any(|name| name == "is_favorited");
+        if !has_favorited {
+            conn.execute("ALTER TABLE history ADD COLUMN is_favorited INTEGER NOT NULL DEFAULT 0", ())?;
+            logger::info("Database", "Migrated: added is_favorited column");
+        }
 
         // Snippets table for quick commands
         conn.execute(
@@ -122,31 +135,38 @@ pub fn save_item(
                 content: content.to_string(),
                 hash: hash.to_string(),
                 created_at,
+                is_favorited: false,
             }))
         }
     }
 }
 
 
-/// Get clipboard history items.
+/// Read a ClipboardItem from a row with columns: id, type, content, hash, created_at, is_favorited.
+fn row_to_item(row: &rusqlite::Row) -> rusqlite::Result<ClipboardItem> {
+    Ok(ClipboardItem {
+        id: row.get(0)?,
+        item_type: row.get(1)?,
+        content: row.get(2)?,
+        hash: row.get(3)?,
+        created_at: row.get(4)?,
+        is_favorited: row.get::<_, i64>(5).unwrap_or(0) != 0,
+    })
+}
+
+const SELECT_COLS: &str = "id, type, content, hash, created_at, is_favorited";
+
+/// Get clipboard history items. Favorites are sorted first, then by recency.
 pub fn get_history(
     conn: &Connection,
     limit: i64,
 ) -> Result<Vec<ClipboardItem>, rusqlite::Error> {
     let mut stmt = conn.prepare(
-        "SELECT id, type, content, hash, created_at FROM history ORDER BY created_at DESC LIMIT ?",
+        &format!("SELECT {} FROM history ORDER BY is_favorited DESC, created_at DESC LIMIT ?", SELECT_COLS),
     )?;
 
     let items = stmt
-        .query_map([limit], |row| {
-            Ok(ClipboardItem {
-                id: row.get(0)?,
-                item_type: row.get(1)?,
-                content: row.get(2)?,
-                hash: row.get(3)?,
-                created_at: row.get(4)?,
-            })
-        })?
+        .query_map([limit], row_to_item)?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(items)
@@ -159,19 +179,11 @@ pub fn get_history_by_type(
     limit: i64,
 ) -> Result<Vec<ClipboardItem>, rusqlite::Error> {
     let mut stmt = conn.prepare(
-        "SELECT id, type, content, hash, created_at FROM history WHERE type = ? ORDER BY created_at DESC LIMIT ?",
+        &format!("SELECT {} FROM history WHERE type = ? ORDER BY is_favorited DESC, created_at DESC LIMIT ?", SELECT_COLS),
     )?;
 
     let items = stmt
-        .query_map(rusqlite::params![item_type, limit], |row| {
-            Ok(ClipboardItem {
-                id: row.get(0)?,
-                item_type: row.get(1)?,
-                content: row.get(2)?,
-                hash: row.get(3)?,
-                created_at: row.get(4)?,
-            })
-        })?
+        .query_map(rusqlite::params![item_type, limit], row_to_item)?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(items)
@@ -185,19 +197,11 @@ pub fn get_history_since(
     limit: i64,
 ) -> Result<Vec<ClipboardItem>, rusqlite::Error> {
     let mut stmt = conn.prepare(
-        "SELECT id, type, content, hash, created_at FROM history WHERE created_at >= ? ORDER BY created_at DESC LIMIT ?",
+        &format!("SELECT {} FROM history WHERE created_at >= ? ORDER BY is_favorited DESC, created_at DESC LIMIT ?", SELECT_COLS),
     )?;
 
     let items = stmt
-        .query_map(rusqlite::params![since, limit], |row| {
-            Ok(ClipboardItem {
-                id: row.get(0)?,
-                item_type: row.get(1)?,
-                content: row.get(2)?,
-                hash: row.get(3)?,
-                created_at: row.get(4)?,
-            })
-        })?
+        .query_map(rusqlite::params![since, limit], row_to_item)?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(items)
@@ -211,19 +215,11 @@ pub fn get_history_by_type_since(
     limit: i64,
 ) -> Result<Vec<ClipboardItem>, rusqlite::Error> {
     let mut stmt = conn.prepare(
-        "SELECT id, type, content, hash, created_at FROM history WHERE type = ? AND created_at >= ? ORDER BY created_at DESC LIMIT ?",
+        &format!("SELECT {} FROM history WHERE type = ? AND created_at >= ? ORDER BY is_favorited DESC, created_at DESC LIMIT ?", SELECT_COLS),
     )?;
 
     let items = stmt
-        .query_map(rusqlite::params![item_type, since, limit], |row| {
-            Ok(ClipboardItem {
-                id: row.get(0)?,
-                item_type: row.get(1)?,
-                content: row.get(2)?,
-                hash: row.get(3)?,
-                created_at: row.get(4)?,
-            })
-        })?
+        .query_map(rusqlite::params![item_type, since, limit], row_to_item)?
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(items)
@@ -231,18 +227,24 @@ pub fn get_history_by_type_since(
 
 /// Clean up old items beyond the specified limit.
 ///
+/// Favorited items are never deleted by auto-cleanup.
 /// Returns the number of items deleted.
 pub fn cleanup_old_items(conn: &Connection, max_items: i64) -> Result<i64, rusqlite::Error> {
-    let count: i64 = conn.query_row("SELECT COUNT(*) FROM history", [], |row| row.get(0))?;
+    // Only count non-favorited items against the limit
+    let non_fav_count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM history WHERE is_favorited = 0", [], |row| row.get(0),
+    )?;
 
-    if count <= max_items {
+    if non_fav_count <= max_items {
         return Ok(0);
     }
 
-    let to_delete = count - max_items;
+    let to_delete = non_fav_count - max_items;
 
-    // Collect image paths to clean up before batch deletion
-    let mut stmt = conn.prepare("SELECT type, content FROM history ORDER BY created_at ASC LIMIT ?")?;
+    // Collect image paths to clean up before batch deletion (only non-favorited)
+    let mut stmt = conn.prepare(
+        "SELECT type, content FROM history WHERE is_favorited = 0 ORDER BY created_at ASC LIMIT ?"
+    )?;
     let image_paths: Vec<String> = stmt
         .query_map([to_delete], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
         .into_iter()
@@ -257,9 +259,9 @@ pub fn cleanup_old_items(conn: &Connection, max_items: i64) -> Result<i64, rusql
         })
         .collect();
 
-    // Batch delete in a single SQL statement
+    // Batch delete only non-favorited items
     conn.execute(
-        "DELETE FROM history WHERE id IN (SELECT id FROM history ORDER BY created_at ASC LIMIT ?)",
+        "DELETE FROM history WHERE id IN (SELECT id FROM history WHERE is_favorited = 0 ORDER BY created_at ASC LIMIT ?)",
         [to_delete],
     )?;
 
@@ -270,6 +272,22 @@ pub fn cleanup_old_items(conn: &Connection, max_items: i64) -> Result<i64, rusql
     }
 
     Ok(to_delete)
+}
+
+/// Toggle the favorite status of a clipboard item.
+///
+/// Returns the new favorite state.
+pub fn toggle_favorite(conn: &Connection, item_id: i64) -> Result<bool, rusqlite::Error> {
+    conn.execute(
+        "UPDATE history SET is_favorited = CASE WHEN is_favorited = 0 THEN 1 ELSE 0 END WHERE id = ?",
+        [item_id],
+    )?;
+    let new_state: bool = conn.query_row(
+        "SELECT is_favorited FROM history WHERE id = ?",
+        [item_id],
+        |row| Ok(row.get::<_, i64>(0)? != 0),
+    )?;
+    Ok(new_state)
 }
 
 /// Delete a single item by ID.
@@ -322,7 +340,8 @@ fn create_history_table(conn: &Connection) -> Result<(), rusqlite::Error> {
             type TEXT NOT NULL,
             content TEXT NOT NULL,
             hash TEXT NOT NULL UNIQUE,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            is_favorited INTEGER NOT NULL DEFAULT 0
         )",
         (),
     )?;

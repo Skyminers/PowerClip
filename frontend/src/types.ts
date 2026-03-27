@@ -8,6 +8,7 @@ export interface ClipboardItem {
   content: string;
   hash: string;
   created_at: string;
+  is_favorited?: boolean;
 }
 
 export interface Extension {

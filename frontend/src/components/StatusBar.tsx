@@ -95,6 +95,12 @@ export function StatusBar({
         <ShortcutHint keys="↑↓" label="Navigate" />
         {viewMode === 'history' && <ShortcutHint keys="←→" label="Filter" />}
         {viewMode === 'snippets' && <ShortcutHint keys="←→" label="History" />}
+        {viewMode === 'history' && hasSelection && (
+          <ShortcutHint keys="Space" label="Preview" />
+        )}
+        {viewMode === 'history' && hasSelection && (
+          <ShortcutHint keys="F" label="Pin" />
+        )}
         {viewMode === 'history' && hasExtensions && hasSelection && (
           <ShortcutHint keys="Tab" label="Plugins" />
         )}

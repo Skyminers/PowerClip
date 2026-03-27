@@ -217,6 +217,18 @@ pub async fn check_clipboard(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Toggle favorite status of a history item.
+///
+/// Returns the new favorite state (true = favorited, false = unfavorited).
+#[tauri::command]
+pub async fn toggle_favorite(
+    state: tauri::State<'_, crate::DatabaseState>,
+    item_id: i64,
+) -> Result<bool, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    db::toggle_favorite(&conn, item_id).map_err(|e| e.to_string())
+}
+
 /// Delete a history item by ID.
 ///
 /// Also deletes the associated image file if the item is an image.

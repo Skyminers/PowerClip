@@ -33,6 +33,7 @@ import {
   SnippetDialog,
   QuickMenu,
   SmartLists,
+  PreviewPanel,
   TEXT_ITEM_HEIGHT,
   IMAGE_ITEM_HEIGHT,
   FILE_ITEM_HEIGHT,
@@ -49,6 +50,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [imageCache, setImageCache] = useState<ImageCache>({})
   const [showExtensions, setShowExtensions] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const [semanticMode, setSemanticMode] = useState(false)
   const [semanticStatus, setSemanticStatus] = useState<SemanticStatus | null>(null)
   const [settingsError, setSettingsError] = useState<string | null>(null)
@@ -133,7 +135,9 @@ function App() {
       // In semantic mode, use semantic results
       let results = semanticResults.map(r => r.item)
       // Apply smart list filter to semantic results too
-      if (smartListFilter === 'text') {
+      if (smartListFilter === 'pinned') {
+        results = results.filter(item => item.is_favorited)
+      } else if (smartListFilter === 'text') {
         results = results.filter(item => item.item_type === 'text')
       } else if (smartListFilter === 'image') {
         results = results.filter(item => item.item_type === 'image')
@@ -149,7 +153,9 @@ function App() {
 
     // Apply smart list filter
     let filtered = items
-    if (smartListFilter === 'text') {
+    if (smartListFilter === 'pinned') {
+      filtered = items.filter(item => item.is_favorited)
+    } else if (smartListFilter === 'text') {
       filtered = items.filter(item => item.item_type === 'text')
     } else if (smartListFilter === 'image') {
       filtered = items.filter(item => item.item_type === 'image')
@@ -171,8 +177,9 @@ function App() {
 
   // Calculate counts for smart list badges (single pass)
   const smartListCounts = useMemo(() => {
-    const counts = { all: items.length, today: 0, week: 0, text: 0, image: 0, file: 0 }
+    const counts = { all: items.length, pinned: 0, today: 0, week: 0, text: 0, image: 0, file: 0 }
     for (const item of items) {
+      if (item.is_favorited) counts.pinned++
       if (item.created_at.startsWith(todayStr)) counts.today++
       if (item.created_at >= weekAgoStr) counts.week++
       if (item.item_type === 'text') counts.text++
@@ -204,6 +211,7 @@ function App() {
   const historyVirtualizer = useVirtualizer({
     count: filteredItems.length,
     getScrollElement: () => listRef.current,
+    getItemKey: (index) => filteredItems[index]?.id ?? index,
     estimateSize: (index) => {
       const item = filteredItems[index]
       if (item?.item_type === 'image') return IMAGE_ITEM_HEIGHT
@@ -242,6 +250,17 @@ function App() {
       setSelectedId(prev => prev === itemId ? null : prev)
     } catch (error) {
       console.error('Failed to delete item:', error)
+    }
+  }, [])
+
+  const toggleFavorite = useCallback(async (itemId: number) => {
+    try {
+      const newState = await invoke<boolean>('toggle_favorite', { itemId })
+      setItems(prev => prev.map(item =>
+        item.id === itemId ? { ...item, is_favorited: newState } : item
+      ))
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error)
     }
   }, [])
 
@@ -394,6 +413,10 @@ function App() {
           setShowAddSnippetDialog(false)
           return
         }
+        if (showPreview) {
+          setShowPreview(false)
+          return
+        }
         setSearchQuery('')
         invoke('hide_window').catch(() => {})
         return
@@ -401,11 +424,11 @@ function App() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [addDialogItem, editingSnippet, showAddSnippetDialog])
+  }, [addDialogItem, editingSnippet, showAddSnippetDialog, showPreview])
 
   // Smart list filter tabs for keyboard navigation
   const smartListTabs: SmartListFilter[] = useMemo(() =>
-    ['all', 'today', 'week', 'text', 'image', 'file'],
+    ['all', 'pinned', 'today', 'week', 'text', 'image', 'file'],
   [])
 
   // Input keyboard handler - only handles special keys, lets text input through
@@ -556,8 +579,33 @@ function App() {
         e.preventDefault()
         inputRef.current?.focus()
         break
+      case ' ':
+        e.preventDefault()
+        if (selectedId !== null) {
+          setShowPreview(prev => !prev)
+        }
+        break
+      case 'f':
+      case 'F':
+        e.preventDefault()
+        if (selectedId !== null) {
+          toggleFavorite(selectedId)
+        }
+        break
+      default: {
+        // Number keys 1-9: quick-paste Nth visible item
+        const num = parseInt(e.key)
+        if (num >= 1 && num <= 9) {
+          const target = filteredItems[num - 1]
+          if (target) {
+            e.preventDefault()
+            copyItem(target)
+          }
+        }
+        break
+      }
     }
-  }, [filteredItems, filteredSnippets, selectedId, selectedSnippetId, settings.extensions.length, copyItem, copySnippet, smartListTabs, smartListFilter])
+  }, [filteredItems, filteredSnippets, selectedId, selectedSnippetId, settings.extensions.length, copyItem, copySnippet, toggleFavorite, smartListTabs, smartListFilter])
 
   // Load image URLs into cache for a batch of items
   const loadImageUrls = useCallback((imageItems: ClipboardItem[]) => {
@@ -678,6 +726,7 @@ function App() {
   useEffect(() => {
     const handler = async () => {
       setShowExtensions(false)
+      setShowPreview(false)
       setViewMode('history')
       setSearchQuery('')
       setSelectedSnippetId(null)
@@ -910,6 +959,7 @@ function App() {
                   return (
                     <ClipboardListItem
                       key={item.id}
+                      ref={historyVirtualizer.measureElement}
                       item={item}
                       isSelected={selectedId === item.id}
                       imageCache={imageCache}
@@ -917,11 +967,13 @@ function App() {
                       contentTruncateLength={settings.content_truncate_length}
                       imagePreviewMaxWidth={settings.image_preview_max_width}
                       imagePreviewMaxHeight={settings.image_preview_max_height}
+                      listIndex={virtualRow.index}
                       onSelect={setSelectedId}
                       onCopy={copyItem}
                       onDelete={deleteItem}
+                      onToggleFavorite={toggleFavorite}
                       onAddToSnippets={handleAddToSnippets}
-                      style={{ position: 'absolute', transform: `translateY(${virtualRow.start}px)`, width: '100%' }}
+                      style={{ position: 'absolute', top: 0, transform: `translateY(${virtualRow.start}px)`, width: '100%' }}
                       data-index={virtualRow.index}
                     />
                   )
@@ -967,6 +1019,18 @@ function App() {
           </>
         )}
       </ul>
+
+      {/* Preview Panel - shown when Space is pressed on a selected item */}
+      {showPreview && viewMode === 'history' && selectedId !== null && (() => {
+        const previewItem = filteredItems.find(i => i.id === selectedId)
+        return previewItem ? (
+          <PreviewPanel
+            item={previewItem}
+            imageCache={imageCache}
+            onClose={() => setShowPreview(false)}
+          />
+        ) : null
+      })()}
 
       <StatusBar
         totalCount={viewMode === 'snippets' ? snippets.length : items.length}

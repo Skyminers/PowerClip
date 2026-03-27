@@ -78,7 +78,7 @@ pub async fn semantic_search(
 
     for sr in search_results {
         let item_result: Result<ClipboardItem, _> = conn.query_row(
-            "SELECT id, type, content, hash, created_at FROM history WHERE id = ?1",
+            "SELECT id, type, content, hash, created_at, is_favorited FROM history WHERE id = ?1",
             [sr.item_id],
             |row| {
                 Ok(ClipboardItem {
@@ -87,6 +87,7 @@ pub async fn semantic_search(
                     content: row.get(2)?,
                     hash: row.get(3)?,
                     created_at: row.get(4)?,
+                    is_favorited: row.get::<_, i64>(5).unwrap_or(0) != 0,
                 })
             },
         );

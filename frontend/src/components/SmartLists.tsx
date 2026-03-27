@@ -5,10 +5,10 @@
  */
 
 import { memo, useRef, useEffect } from 'react'
-import { List, Clock, Calendar, FileText, Image, Folder } from 'lucide-react'
+import { List, Clock, Calendar, FileText, Image, Folder, Pin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type SmartListFilter = 'all' | 'today' | 'week' | 'text' | 'image' | 'file'
+export type SmartListFilter = 'all' | 'pinned' | 'today' | 'week' | 'text' | 'image' | 'file'
 
 interface SmartListOption {
   id: SmartListFilter
@@ -23,6 +23,12 @@ const options: SmartListOption[] = [
     label: 'All',
     icon: <List className="w-3.5 h-3.5" />,
     description: 'All items'
+  },
+  {
+    id: 'pinned',
+    label: 'Pinned',
+    icon: <Pin className="w-3.5 h-3.5" />,
+    description: 'Pinned items'
   },
   {
     id: 'today',
@@ -61,6 +67,7 @@ interface SmartListsProps {
   onFilterChange: (filter: SmartListFilter) => void
   counts?: {
     all: number
+    pinned: number
     today: number
     week: number
     text: number
