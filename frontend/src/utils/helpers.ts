@@ -8,6 +8,10 @@ export function formatTime(createdAt: string): string {
     // Timestamps are stored as ISO 8601 ("YYYY-MM-DDTHH:MM:SS").
     // The replace is a no-op for current data and a fallback for legacy records.
     const date = new Date(createdAt.replace(' ', 'T'))
+
+    // Guard against invalid dates (new Date() never throws, but may produce NaN)
+    if (isNaN(date.getTime())) return createdAt
+
     const now = new Date()
     const diff = now.getTime() - date.getTime()
     const minutes = Math.floor(diff / 60000)

@@ -63,11 +63,12 @@ describe('constants', () => {
       expect(WINDOW_MIN_HEIGHT).toBe(200)
     })
 
-    it('should have valid max window dimensions', () => {
+    it('should have valid max window dimensions (no upper limit by design)', () => {
       expect(WINDOW_MAX_WIDTH).toBeGreaterThan(WINDOW_MIN_WIDTH)
       expect(WINDOW_MAX_HEIGHT).toBeGreaterThan(WINDOW_MIN_HEIGHT)
-      expect(WINDOW_MAX_WIDTH).toBe(800)
-      expect(WINDOW_MAX_HEIGHT).toBe(600)
+      // Max dimensions are intentionally large (10000) to allow unlimited resizing
+      expect(WINDOW_MAX_WIDTH).toBeGreaterThanOrEqual(800)
+      expect(WINDOW_MAX_HEIGHT).toBeGreaterThanOrEqual(600)
     })
 
     it('should have min dimensions less than max dimensions', () => {

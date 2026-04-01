@@ -12,6 +12,12 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => mockInvoke(...args),
 }))
 
+// Mock Tauri event API to prevent unhandled rejection errors from QuickMenu
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(() => Promise.resolve(() => {})),
+  emit: vi.fn(() => Promise.resolve()),
+}))
+
 // Mock platform with all exports
 vi.mock('../utils/platform', () => ({
   isDarwin: true,
