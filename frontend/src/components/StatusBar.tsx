@@ -91,7 +91,7 @@ export function StatusBar({
       </div>
 
       {/* Right side - keyboard shortcuts */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 overflow-hidden flex-shrink-0">
         <ShortcutHint keys="↑↓" label="Navigate" />
         {viewMode === 'history' && <ShortcutHint keys="←→" label="Filter" />}
         {viewMode === 'snippets' && <ShortcutHint keys="←→" label="History" />}

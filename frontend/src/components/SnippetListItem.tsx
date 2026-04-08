@@ -65,6 +65,7 @@ export const SnippetListItem = memo(forwardRef<HTMLLIElement, {
         display: 'flex',
         alignItems: 'center',
         padding: '0 16px',
+        overflow: 'hidden',
         ...style
       }}
       onClick={() => onSelect(snippet.id)}

@@ -138,7 +138,7 @@ export function QuickMenu({ items, imageCache }: QuickMenuProps) {
         className="rounded-xl overflow-hidden"
         style={{
           width: '400px',
-          maxHeight: '400px',
+          maxHeight: 'min(400px, 70vh)',
           backgroundColor: 'var(--background)',
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.1)',
           animation: 'scaleIn 0.15s ease'
@@ -162,7 +162,7 @@ export function QuickMenu({ items, imageCache }: QuickMenuProps) {
         </div>
 
         {/* Items list */}
-        <div className="overflow-y-auto scrollbar-thin" style={{ maxHeight: '350px' }}>
+        <div className="overflow-y-auto scrollbar-thin" style={{ maxHeight: 'min(350px, 60vh)' }}>
           {displayItems.length === 0 ? (
             <div
               className="px-4 py-10 text-center text-sm"
@@ -217,9 +217,9 @@ export function QuickMenu({ items, imageCache }: QuickMenuProps) {
                   </div>
 
                   {/* Content */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                     {item.item_type === 'image' ? (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2" style={{ overflow: 'hidden' }}>
                         <span
                           className="text-xs"
                           style={{ color: 'var(--muted-foreground)' }}
